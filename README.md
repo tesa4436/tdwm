@@ -16,5 +16,5 @@ the only thing it does is placing windows in a tiling manner.
 * For now, window resizing mostly works, but my code's calculations sometimes are off by a few pixels, when the window being splitted
 has an odd number size. This issue halted my progress.
 * Proper keybindings are not implemented, only hardcoded ones for changing window splitting mode.
-* I postponed compliance with ICCCM and EWMH, because it is not high in my protity list, also it's rather tedious to correctly comply
+* I postponed compliance with ICCCM and EWMH, because it is not high in my priority list, also it's rather tedious to correctly comply with
 them.
