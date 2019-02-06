@@ -208,16 +208,22 @@ void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, double r
 		return;
 	current->x = x;
 	double temp;
+	char rem1, rem2;
 	current->old_width = current->width;
 	if(current->north_prev)
 		remainder = 0;
 		
 	temp =	(
-			(( (double)(current->width + BORDER_WIDTH*2) / (double)(local_width - (lim_window->width + BORDER_WIDTH*2))) -
-			( (double)(current->width + BORDER_WIDTH*2) / (double)local_width))
-			* (double)local_width
+			(
+				((double)(current->width + BORDER_WIDTH*2) / (double)(local_width - (lim_window->width + BORDER_WIDTH*2))) -
+				((double)(current->width + BORDER_WIDTH*2) / (double)local_width)
+			) * local_width
 		);
+	rem1 = (current->width + BORDER_WIDTH*2) % (local_width - (lim_window->width + BORDER_WIDTH*2));
+	rem2 = (current->width + BORDER_WIDTH*2) % local_width;
 	remainder += temp - (uint32_t) temp;
+	printf("rems: %d %d %f\n", rem1, rem2, remainder);
+
 	current->width += temp;
 	
 	if(!current->east_next)
