@@ -236,19 +236,27 @@ void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, double r
 			current2 = current2->west_prev;
 		while(current2->east_next)
 		{
-		
 			if(remainder)
 			{
 				current2->width++;
 				printf("add at %d\n", current2->window);
 				remainder--;
 				xcb_configure_window(connection, current2->window, XCB_CONFIG_WINDOW_WIDTH, &current2->width);
-				if(current2->east_next)
-				{
+				if(!remainder) {
+					Window *current3 = current2->east_next;
+					while(current3->east_next) {
+						printf("shift %d\n", current3->window);
+						current3->x++;
+						xcb_configure_window(connection, current3->window, XCB_CONFIG_WINDOW_X, &current3->x);
+						current3 = current3->east_next;
+					}
+					break;
+				} else {
+					printf("shift %d\n", current2->east_next->window);
 					current2->east_next->x++;
 					xcb_configure_window(connection, current2->east_next->window, XCB_CONFIG_WINDOW_X, &current2->east_next->x);
 				}
-			}
+			} else break;
 			current2 = current2->east_next;
 		}
 	}
@@ -334,6 +342,10 @@ void map_request(xcb_generic_event_t *ev)
 		if(focused_window == root)
 		{
 			xcb_get_geometry_cookie_t root_geom_cookie = xcb_get_geometry(connection, root);
+			Root = (Window*) malloc(sizeof(Window));
+			Root->window = mapreq_ev->window;
+			Root->north_prev = NULL;
+			Root->south_next = NULL;
 			Root = (Window*) malloc(sizeof(Window));
 			Root->window = mapreq_ev->window;
 			Root->north_prev = NULL;
@@ -906,10 +918,7 @@ void setup()
 
 int main(int argc, char **argv)
 {
-	setup();
-	for (;;)
-	{	
-		ev = xcb_wait_for_event(connection);
+	for(;;) {
 		if(handler[ev->response_type & ~0x80])
 			handler[ev->response_type & ~0x80](ev);
 		else free(ev);
