@@ -346,10 +346,6 @@ void map_request(xcb_generic_event_t *ev)
 			Root->window = mapreq_ev->window;
 			Root->north_prev = NULL;
 			Root->south_next = NULL;
-			Root = (Window*) malloc(sizeof(Window));
-			Root->window = mapreq_ev->window;
-			Root->north_prev = NULL;
-			Root->south_next = NULL;
 			Root->east_next = NULL;
 			Root->west_prev = NULL;
 			Current = Root;
@@ -919,6 +915,7 @@ void setup()
 int main(int argc, char **argv)
 {
 	for(;;) {
+		ev = xcb_wait_for_event(connection);
 		if(handler[ev->response_type & ~0x80])
 			handler[ev->response_type & ~0x80](ev);
 		else free(ev);
