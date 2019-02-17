@@ -216,15 +216,35 @@ void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, double r
 	}
 	temp = (double)(current->width * (lim_window->width + local_width)) / local_width;
 	remainder += temp - (uint32_t) temp;
+	if(!current->east_next && remainder) {
+		Window *current2 = current;
+		remainder--;
+		current2->width++;
+		//xcb_configure_window(connection, current2->window, XCB_CONFIG_WINDOW_WIDTH, &current2->width);
+		while (current2->west_prev && remainder) {
+			current2 = current2->west_prev;
+			remainder--;
+			current2->width++;
+			xcb_configure_window(connection, current2->window, XCB_CONFIG_WINDOW_WIDTH, &current2->width);
+			if(!remainder) {
+				break;
+			}
+		}
+		while(current2->east_next) {
+			current2->east_next->x = current2->x + current2->width + BORDER_WIDTH*2;
+			if(current2->east_next != current) {
+				xcb_configure_window(connection, current2->east_next->window, XCB_CONFIG_WINDOW_X, &current2->east_next->x);		
+			}
+			current2 = current2->east_next;
+		}
+	}
 	printf("rem %f at %d\n", remainder, current->window);
 	current->width = (current->width * (lim_window->width + local_width)) / local_width;
 	xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_X, &current->x);
 	xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_WIDTH, &current->width);
-	xcb_flush(connection);
 	recursive_resize_and_repos_horizontal(current->east_next, current->x + current->width + BORDER_WIDTH*2, remainder, lim_window, local_width);		
 	recursive_resize_and_repos_horizontal(current->south_next, current->x, remainder, lim_window, local_width);
 }
-
 Window* bfs_search(Window *current, xcb_window_t key)
 {
 	if(!current)
@@ -463,6 +483,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 					Current2 = Current2->south_next;	
 				}
 				recursive_resize_and_repos_horizontal(Current->east_next, Current->x, 0, Current, calc_width_east(Current->east_next, Current));
+				xcb_flush(connection);
 				Current2->south_next = Current->south_next;
 				Current->south_next->north_prev = Current2;
 
@@ -574,6 +595,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 					current2 = current2->west_prev;
 				}
 				recursive_resize_and_repos_horizontal(current2, current2->x, 0, Current, local_width);
+				xcb_flush(connection);
 				Current->west_prev->east_next = Temp;
 			}
 		}
@@ -610,6 +632,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 			if((Current->height + BORDER_WIDTH*2) >= (uint32_t)calc_height_south(Current->east_next, NULL))
 			{
 				recursive_resize_and_repos_horizontal(Current->east_next, Current->x, 0, Current, calc_width_east(Current->east_next, Current));
+				xcb_flush(connection);
 			}
 			else if(Current->north_prev)
 			{
@@ -627,6 +650,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 					current2 = current2->west_prev;
 				}
 				recursive_resize_and_repos_horizontal(current2, current2->x, 0, Current, local_width);
+				xcb_flush(connection);
 				Current->west_prev->east_next = Temp;
 			}
 		}
@@ -647,6 +671,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 					current2 = current2->west_prev;
 				}
 				recursive_resize_and_repos_horizontal(current2, current2->x, 0, Current, calc_width_west(Current->west_prev, Current));
+				xcb_flush(connection);
 			}
 			xcb_flush(connection);
 		}
