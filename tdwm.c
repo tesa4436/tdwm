@@ -215,16 +215,22 @@ void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, double r
 		remainder = 0;		
 	}
 	temp = (double)(current->width * (lim_window->width + local_width)) / local_width;
+	current->width = (current->width * (lim_window->width + local_width)) / local_width;
 	remainder += temp - (uint32_t) temp;
+	printf("rem %f at %d\n", remainder, current->window);
 	if(!current->east_next && remainder) {
 		Window *current2 = current;
+		remainder = (uint32_t) remainder;
 		remainder--;
 		current2->width++;
-		//xcb_configure_window(connection, current2->window, XCB_CONFIG_WINDOW_WIDTH, &current2->width);
 		while (current2->west_prev && remainder) {
 			current2 = current2->west_prev;
 			remainder--;
 			current2->width++;
+			if(!current2->west_prev && remainder) { //not sure if the following block is necessary, probably not
+				current2->width += remainder;
+				remainder = 0;
+			}
 			xcb_configure_window(connection, current2->window, XCB_CONFIG_WINDOW_WIDTH, &current2->width);
 			if(!remainder) {
 				break;
@@ -238,8 +244,6 @@ void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, double r
 			current2 = current2->east_next;
 		}
 	}
-	printf("rem %f at %d\n", remainder, current->window);
-	current->width = (current->width * (lim_window->width + local_width)) / local_width;
 	xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_X, &current->x);
 	xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_WIDTH, &current->width);
 	recursive_resize_and_repos_horizontal(current->east_next, current->x + current->width + BORDER_WIDTH*2, remainder, lim_window, local_width);		
