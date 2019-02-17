@@ -210,17 +210,19 @@ void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, double r
 	double temp;
 	current->x = x;
 	current->old_width = current->width;
-	printf("bong %f %d\n", (double)(current->width * (lim_window->width + local_width)) / local_width, local_width % (current->width * (lim_window->width + local_width)));
 	if(current->north_prev) {
 		remainder = 0;		
 	}
 	temp = (double)(current->width * (lim_window->width + local_width)) / local_width;
 	current->width = (current->width * (lim_window->width + local_width)) / local_width;
 	remainder += temp - (uint32_t) temp;
-	printf("rem %f at %d\n", remainder, current->window);
 	if(!current->east_next && remainder) {
 		Window *current2 = current;
-		remainder = (uint32_t) remainder;
+		if((remainder - (uint32_t) remainder) >= 0.9) { // floating point hell, sometimes the result is *.9999643758456238 for example... 
+			remainder = (uint32_t) ++remainder;	// i was lucky to notice this early on. floating point, mmmmmmmhmmmm spicy....
+		} else {
+			remainder = (uint32_t) remainder;
+		}
 		remainder--;
 		current2->width++;
 		while (current2->west_prev && remainder) {
