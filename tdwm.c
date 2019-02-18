@@ -540,7 +540,6 @@ void unmap_notify(xcb_generic_event_t *ev)
 			else
 			{
 				Current2 = Current->south_next;
-				
 				while(Current2->east_next)
 				{
 					Current2 = Current2->east_next;	
@@ -610,32 +609,32 @@ void unmap_notify(xcb_generic_event_t *ev)
 			if((Current->width + BORDER_WIDTH*2) >= calc_width_east(Current->south_next, NULL))
 			{
 				recursive_resize_and_repos_vertical(Current->south_next, Current->y, 0, Current, calc_height_south(Current->south_next, Current));
-				xcb_flush(connection);
 			}
 			else if(Current->north_prev)
 			{
 				Window *Temp = Current->north_prev->south_next;
 				Current->north_prev->south_next = NULL;
-				recursive_resize_and_repos_vertical(Current->north_prev, Current->north_prev->y, 0, Current, local_height);
-				xcb_flush(connection);
+				while(Current2->north_prev && Current2->north_prev->width <= Current->width) {
+					Current2 = Current2->north_prev;
+				}
+				recursive_resize_and_repos_vertical(Current2, Current2->y, 0, Current, local_height);
 				Current->north_prev->south_next = Temp;
 			}
 			else if(Current->west_prev)
 			{
 				Window *Temp = Current->west_prev->east_next;
 				Current->west_prev->east_next = NULL;
-				Window *current2 = Current;
-				while(current2->west_prev && current2->west_prev->height <= Current->height) {
-					current2 = current2->west_prev;
+				while(Current2->west_prev && Current2->west_prev->height <= Current->height) {
+					Current2 = Current2->west_prev;
 				}
-				recursive_resize_and_repos_horizontal(current2, current2->x, 0, Current, local_width);
-				xcb_flush(connection);
+				recursive_resize_and_repos_horizontal(Current2, Current2->x, 0, Current, local_width);
 				Current->west_prev->east_next = Temp;
 			}
+			xcb_flush(connection);
 		}
 		else if(Current->east_next && !Current->south_next)
 		{
-			Current2 = Current->east_next;
+			Current2 = Current;
 			Temp1 = Current->east_next;
 			Temp2 = Current->south_next;
 			Current->east_next = NULL;
@@ -672,7 +671,10 @@ void unmap_notify(xcb_generic_event_t *ev)
 			{
 				Window *Temp = Current->north_prev->south_next;
 				Current->north_prev->south_next = NULL;
-				recursive_resize_and_repos_vertical(Current->north_prev, Current->north_prev->y, 0, Current, local_height);
+				while(Current2->north_prev && Current2->north_prev->width <= Current->width) {
+					Current2 = Current2->north_prev;
+				}
+				recursive_resize_and_repos_vertical(Current2, Current2->y, 0, Current, local_height);
 				xcb_flush(connection);
 				Current->north_prev->south_next = Temp;
 			}
@@ -680,11 +682,10 @@ void unmap_notify(xcb_generic_event_t *ev)
 			{
 				Window *Temp = Current->west_prev->east_next;
 				Current->west_prev->east_next = NULL;
-				Window *current2 = Current;
-				while(current2->west_prev && current2->west_prev->height <= Current->height) {
-					current2 = current2->west_prev;
+				while(Current2->west_prev && Current2->west_prev->height <= Current->height) {
+					Current2 = Current2->west_prev;
 				}
-				recursive_resize_and_repos_horizontal(current2, current2->x, 0, Current, local_width);
+				recursive_resize_and_repos_horizontal(Current2, Current2->x, 0, Current, local_width);
 				xcb_flush(connection);
 				Current->west_prev->east_next = Temp;
 			}
@@ -694,20 +695,19 @@ void unmap_notify(xcb_generic_event_t *ev)
 			Current2 = Current;
 			if(Current->north_prev)
 			{
-				local_height = calc_height_north(Current->north_prev, Current);
 				Current->north_prev->south_next = NULL;
-				recursive_resize_and_repos_vertical(Current->north_prev, Current->north_prev->y, 0, Current, local_height);
-				xcb_flush(connection);
+				while(Current2->north_prev && Current2->north_prev->width <= Current->width) {
+					Current2 = Current2->north_prev;
+				}
+				recursive_resize_and_repos_vertical(Current2, Current2->y, 0, Current, calc_height_north(Current->north_prev, Current));
 			}
 			if(Current->west_prev)
 			{
 				Current->west_prev->east_next = NULL;
-				Window *current2 = Current;
-				while(current2->west_prev && current2->west_prev->height <= Current->height) {
-					current2 = current2->west_prev;
+				while(Current2->west_prev && Current2->west_prev->height <= Current->height) {
+					Current2 = Current2->west_prev;
 				}
-				recursive_resize_and_repos_horizontal(current2, current2->x, 0, Current, calc_width_west(Current->west_prev, Current));
-				xcb_flush(connection);
+				recursive_resize_and_repos_horizontal(Current2, Current2->x, 0, Current, calc_width_west(Current->west_prev, Current));
 			}
 			xcb_flush(connection);
 		}
