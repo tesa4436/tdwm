@@ -439,7 +439,6 @@ void map_request(xcb_generic_event_t *ev)
 {
 	xcb_map_request_event_t *mapreq_ev = (xcb_map_request_event_t *) ev;
 	xcb_get_property_cookie_t wm_hints_cookie = xcb_icccm_get_wm_hints(connection, mapreq_ev->window);
-	win = mapreq_ev->window;
 	xcb_window_t prop = 0;
 	values[0] = BORDER_WIDTH;
 	xcb_configure_window(connection, mapreq_ev->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
@@ -447,7 +446,6 @@ void map_request(xcb_generic_event_t *ev)
 	{
 		Current = bfs_search(Root, prop);
 		geom = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, mapreq_ev->window), NULL);
-		
 		if((Current->width > geom->width) && (Current->height > geom->height))
 		{
 			values[0] = Current->x + Current->width/2 - geom->width/2;
@@ -461,14 +459,13 @@ void map_request(xcb_generic_event_t *ev)
 		xcb_configure_window(connection, mapreq_ev->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
 	}
 	else {
-		insert_window_after(Root, focused_window, mapreq_ev->window);
+		insert_window_after(Root, focused_window, mapreq_ev->window); // insert mapreq_ev->window after focused_window
 	}
 	if(xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL))
 	{
 		xcb_icccm_wm_hints_set_normal(&wm_hints);
 		xcb_icccm_set_wm_hints(connection, mapreq_ev->window, &wm_hints);
 	}
-
 	values[0] = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_FOCUS_CHANGE;
 	xcb_change_window_attributes(connection, mapreq_ev->window, XCB_CW_EVENT_MASK, values);			
 	xcb_map_window(connection,mapreq_ev->window);
