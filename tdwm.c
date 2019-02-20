@@ -46,6 +46,8 @@ uint32_t calc_height_south(Window *current, Window *lim_window);
 uint32_t calc_height_north(Window *current, Window *lim_window);
 void focus_in(xcb_generic_event_t *ev);
 void focus_out(xcb_generic_event_t *ev);
+Window* bfs_search(Window *current, xcb_window_t key);
+void insert_window_after(Window *root, xcb_window_t after_which, xcb_window_t new_window);
 
 static void (*handler[XCB_GE_GENERIC]) (xcb_generic_event_t *) = {
 	[XCB_BUTTON_PRESS] = NULL,
@@ -229,7 +231,6 @@ void recursive_resize_and_repos_vertical(Window *current, uint32_t y, double rem
 	recursive_resize_and_repos_vertical(current->east_next, y, remainder, lim_window, local_height);
 	recursive_resize_and_repos_vertical(current->south_next, current->y + current->height + BORDER_WIDTH*2, remainder, lim_window, local_height);
 }
-
 void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, double remainder, Window *lim_window, uint32_t local_width)
 {
 	if (!current || (lim_window ? (((lim_window->y + lim_window->height + BORDER_WIDTH*2) == current->y) ? 1 : 0 ) || (current->height > lim_window->height) : 0)) {
@@ -279,6 +280,124 @@ void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, double r
 	recursive_resize_and_repos_horizontal(current->east_next, current->x + current->width + BORDER_WIDTH*2, remainder, lim_window, local_width);		
 	recursive_resize_and_repos_horizontal(current->south_next, current->x, remainder, lim_window, local_width);
 }
+
+void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window_t new_window) // this function uses a bunch of global variables, TODO make local
+{
+	xcb_get_geometry_cookie_t focus_geom_cookie = xcb_get_geometry(connection, focused_window);
+	Window Temp;
+		if(after_which == root)
+		{
+			xcb_get_geometry_cookie_t root_geom_cookie = xcb_get_geometry(connection, root);
+			Root = (Window*) malloc(sizeof(Window));
+			if(!Root) {
+				fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
+				exit(1);
+			}
+			Root->window = new_window;
+			Root->north_prev = NULL;
+			Root->south_next = NULL;
+			Root->east_next = NULL;
+			Root->west_prev = NULL;
+			Current = Root; // Current is global, probably should be changed to local
+			geom = xcb_get_geometry_reply(connection, root_geom_cookie, NULL);
+			values[0] = geom->width - BORDER_WIDTH*2;
+			values[1] = geom->height - BORDER_WIDTH*2;
+			Root->width = geom->width - BORDER_WIDTH*2;
+			Root->height = geom->height - BORDER_WIDTH*2;
+			Root->x = 0;
+			Root->y = 0;
+			xcb_configure_window(connection, Root->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+		}
+		else if(split_mode == 'v')
+		{
+			Current = bfs_search(tree_root, after_which);
+			if(Current)
+			{
+				Temp = *Current;
+				Prev = Current;
+				Current->south_next = (Window*) malloc(sizeof(Window));
+				if(!Current->south_next)
+				{
+					fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
+					exit(2);
+				}
+				Current = Current->south_next;
+				Current->window = new_window;
+				Current->north_prev = Prev;
+				Current->west_prev = NULL;
+				Current->east_next = NULL;
+				Current->south_next = Temp.south_next;
+				Prev->south_next = Current;
+				if(Current->south_next) {
+					Current->south_next->north_prev = Current;
+				}
+				geom = xcb_get_geometry_reply(connection, focus_geom_cookie, NULL);
+				values[0] = geom->width;
+				values[1] = (geom->height + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2;
+				xcb_configure_window(connection, Prev->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+				Prev->width = values[0];
+				Prev->height = values[1];
+				values[0] = geom->x;
+				values[1] = geom->y + ((geom->height + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2) + BORDER_WIDTH*2;
+				xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
+				Current->x = values[0];
+				Current->y = values[1];
+				values[0] = geom->width;
+				values[1] = Prev->height;
+				if(geom->height%2) {
+					values[1]++;
+				}
+				xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+				Current->width = values[0];
+				Current->height = values[1];
+			}
+		}
+		else
+		{
+			Current = bfs_search(tree_root, after_which);
+			if(Current)
+			{
+				Temp = *Current;
+				Prev = Current;
+				Current->east_next = (Window*) malloc(sizeof(Window));
+				if(!Current->east_next)
+				{
+					fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
+					exit(2);
+				}
+				Current = Current->east_next;
+				Current->window = new_window;
+				Current->north_prev = NULL;
+				Current->west_prev = Prev;
+				Current->east_next = Temp.east_next;
+				Current->south_next = NULL;
+				Prev->east_next = Current;
+				if(Current->east_next) {
+					Current->east_next->west_prev = Current;
+				}
+				geom = xcb_get_geometry_reply(connection, focus_geom_cookie, NULL);
+				values[0] = (geom->width + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2;
+				values[1] = geom->height;
+				xcb_configure_window(connection, Prev->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+				Prev->width = values[0];
+				Prev->height = values[1];
+				values[0] = geom->x + ((geom->width + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2) + BORDER_WIDTH*2;
+				values[1] = geom->y;
+				xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
+				Current->x = values[0];
+				Current->y = values[1];
+				values[0] = Prev->width;
+				if(geom->width%2) {
+					values[0]++;
+				}
+				values[1] = geom->height;
+				xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_WIDTH |XCB_CONFIG_WINDOW_HEIGHT, values);
+				Current->width = values[0];
+				Current->height = values[1];
+			}
+		}
+}
+
 Window* bfs_search(Window *current, xcb_window_t key)
 {
 	if(!current)
@@ -319,14 +438,11 @@ void print_node(Window *root, xcb_window_t win)
 void map_request(xcb_generic_event_t *ev)
 {
 	xcb_map_request_event_t *mapreq_ev = (xcb_map_request_event_t *) ev;
-	xcb_get_geometry_cookie_t focus_geom_cookie = xcb_get_geometry(connection, focused_window);
 	xcb_get_property_cookie_t wm_hints_cookie = xcb_icccm_get_wm_hints(connection, mapreq_ev->window);
 	win = mapreq_ev->window;
 	xcb_window_t prop = 0;
-	Window Temp;
 	values[0] = BORDER_WIDTH;
 	xcb_configure_window(connection, mapreq_ev->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
-	
 	if(xcb_icccm_get_wm_transient_for_reply(connection, xcb_icccm_get_wm_transient_for(connection, mapreq_ev->window), &prop, NULL))
 	{
 		Current = bfs_search(Root, prop);
@@ -344,136 +460,9 @@ void map_request(xcb_generic_event_t *ev)
 		}
 		xcb_configure_window(connection, mapreq_ev->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
 	}
-	else
-	{
-		if(focused_window == root)
-		{
-			xcb_get_geometry_cookie_t root_geom_cookie = xcb_get_geometry(connection, root);
-			Root = (Window*) malloc(sizeof(Window));
-			Root->window = mapreq_ev->window;
-			Root->north_prev = NULL;
-			Root->south_next = NULL;
-			Root->east_next = NULL;
-			Root->west_prev = NULL;
-			Current = Root;
-
-			geom = xcb_get_geometry_reply(connection, root_geom_cookie, NULL);
-			values[0] = geom->width - BORDER_WIDTH*2;
-			values[1] = geom->height - BORDER_WIDTH*2;
-		
-			Root->width = geom->width - BORDER_WIDTH*2;
-			Root->height = geom->height - BORDER_WIDTH*2;
-			Root->x = 0;
-			Root->y = 0;
-		
-			xcb_configure_window(connection, Root->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
-		}
-		else if(split_mode == 'v')
-		{
-			Current = bfs_search(Root, focused_window);
-			if(Current)
-			{
-				Temp = *Current;
-				Prev = Current;
-			
-				Current->south_next = (Window*) malloc(sizeof(Window));
-				if(!Current->south_next)
-				{
-					fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
-					exit(2);
-				}
-				Current = Current->south_next;
-				Current->window = mapreq_ev->window;
-			
-				Current->north_prev = Prev;
-				Current->west_prev = NULL;
-				Current->east_next = NULL;
-				Current->south_next = Temp.south_next;
-
-				Prev->south_next = Current;
-				if(Current->south_next)
-					Current->south_next->north_prev = Current;
-	
-				geom = xcb_get_geometry_reply(connection, focus_geom_cookie, NULL);
-				values[0] = geom->width;
-				values[1] = (geom->height + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2;
-				xcb_configure_window(connection, Prev->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
-															values);
-				Prev->width = values[0];
-				Prev->height = values[1];
-	
-				values[0] = geom->x;
-				values[1] = geom->y + ((geom->height + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2) + BORDER_WIDTH*2;
-				xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
-				Current->x = values[0];
-				Current->y = values[1];
-	
-				values[0] = geom->width;
-				values[1] = Prev->height;
-				if(geom->height%2)
-					values[1]++;
-
-				xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
-				Current->width = values[0];
-				Current->height = values[1];
-			}
-		}
-		else
-		{
-			Current = bfs_search(Root, focused_window);
-		
-			if(Current)
-			{
-				Temp = *Current;
-				Prev = Current;
-		
-				Current->east_next = (Window*) malloc(sizeof(Window));
-				if(!Current->east_next)
-				{
-					fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
-					exit(2);
-				}
-				Current = Current->east_next;
-				Current->window = mapreq_ev->window;
-			
-			
-				Current->north_prev = NULL;
-				Current->west_prev = Prev;
-				Current->east_next = Temp.east_next;
-				Current->south_next = NULL;
-				Prev->east_next = Current;
-				if(Current->east_next)
-					Current->east_next->west_prev = Current;
-
-	
-				geom = xcb_get_geometry_reply(connection, focus_geom_cookie, NULL);
-				values[0] = (geom->width + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2;
-
-				values[1] = geom->height;
-				xcb_configure_window(connection, Prev->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
-															values);
-				Prev->width = values[0];
-				Prev->height = values[1];
-
-				values[0] = geom->x + ((geom->width + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2) + BORDER_WIDTH*2;
-				values[1] = geom->y;
-				xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
-				Current->x = values[0];
-				Current->y = values[1];
-
-	
-				values[0] = Prev->width;
-				if(geom->width%2)
-					values[0]++;
-
-				values[1] = geom->height;
-				xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_WIDTH |XCB_CONFIG_WINDOW_HEIGHT, values);
-				Current->width = values[0];
-				Current->height = values[1];
-			}
-		}
+	else {
+		insert_window_after(Root, focused_window, mapreq_ev->window);
 	}
-	
 	if(xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL))
 	{
 		xcb_icccm_wm_hints_set_normal(&wm_hints);
@@ -487,9 +476,9 @@ void map_request(xcb_generic_event_t *ev)
 	xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, mapreq_ev->window, XCB_CURRENT_TIME);
 	xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, netatom[NetActiveWindow], XCB_WINDOW, 32, 1, &mapreq_ev->window);
 	xcb_flush(connection);
-				
-	if(Current)
+	if(Current) {
 		free(geom);
+	}
 	free(ev);
 }
 
