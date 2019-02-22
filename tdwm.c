@@ -180,7 +180,6 @@ void bfs_count(Window *current, uint32_t *counter)
 		bfs_count(current->east_next, counter);
 
 }
-
 void recursive_resize_and_repos_vertical(Window *current, uint32_t y, double remainder, Window *lim_window, uint32_t local_height)
 {		
 	if(!current || (lim_window ? (((lim_window->x + lim_window->width + BORDER_WIDTH*2) == current->x) ? 1 : 0 ) || (current->width > lim_window->width) : 0)) {
@@ -198,7 +197,7 @@ void recursive_resize_and_repos_vertical(Window *current, uint32_t y, double rem
 	remainder += temp - (uint32_t) temp;
 	if(!current->south_next && remainder) {
 		Window *current2 = current;
-		if((remainder - (uint32_t) remainder) >= 0.9) { // floating point hell, sometimes the result is *.9999643758456238 for example... 
+		if((remainder - (uint32_t) remainder) >= 0.5) { // floating point hell, sometimes the result is *.9999643758456238 for example... 
 			remainder = (uint32_t) ++remainder;	// i was lucky to notice this early on. floating point, mmmmmmmhmmmm spicy....
 		} else {
 			remainder = (uint32_t) remainder;
@@ -243,11 +242,13 @@ void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, double r
 		remainder = 0;		
 	}
 	temp = (double)(current->width * (lim_window->width + local_width)) / local_width;
-	current->width = (current->width * (lim_window->width + local_width)) / local_width;
+	current->width = (uint32_t) temp;
 	remainder += temp - (uint32_t) temp;
+	printf("temp before round: %.50f at %d, local_width %u, current width %u\n", (temp - (uint32_t)temp), current->window, local_width, current->width);
 	if(!current->east_next && remainder) {
 		Window *current2 = current;
-		if((remainder - (uint32_t) remainder) >= 0.9) { // floating point hell, sometimes the result is *.9999643758456238 for example... 
+		printf("end %.50f, %.50f prop at %d\n", remainder, (double)current->width / (local_width + lim_window->width), current->window);
+		if((remainder - (uint32_t) remainder) >= 0.5) { // floating point hell, sometimes the result is *.9999643758456238 for example... 
 			remainder = (uint32_t) ++remainder;	// i was lucky to notice this early on. floating point, mmmmmmmhmmmm spicy....
 		} else {
 			remainder = (uint32_t) remainder;
@@ -285,117 +286,117 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 {
 	xcb_get_geometry_cookie_t focus_geom_cookie = xcb_get_geometry(connection, focused_window);
 	Window Temp;
-		if(after_which == root)
+	if(after_which == root)
+	{
+		xcb_get_geometry_cookie_t root_geom_cookie = xcb_get_geometry(connection, root);
+		Root = (Window*) malloc(sizeof(Window));
+		if(!Root) {
+			fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
+			exit(1);
+		}
+		Root->window = new_window;
+		Root->north_prev = NULL;
+		Root->south_next = NULL;
+		Root->east_next = NULL;
+		Root->west_prev = NULL;
+		Current = Root; // Current is global, probably should be changed to local
+		geom = xcb_get_geometry_reply(connection, root_geom_cookie, NULL);
+		values[0] = geom->width - BORDER_WIDTH*2;
+		values[1] = geom->height - BORDER_WIDTH*2;
+		Root->width = geom->width - BORDER_WIDTH*2;
+		Root->height = geom->height - BORDER_WIDTH*2;
+		Root->x = 0;
+		Root->y = 0;
+		xcb_configure_window(connection, Root->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+	}
+	else if(split_mode == 'v')
+	{
+		Current = bfs_search(tree_root, after_which);
+		if(Current)
 		{
-			xcb_get_geometry_cookie_t root_geom_cookie = xcb_get_geometry(connection, root);
-			Root = (Window*) malloc(sizeof(Window));
-			if(!Root) {
+			Temp = *Current;
+			Prev = Current;
+			Current->south_next = (Window*) malloc(sizeof(Window));
+			if(!Current->south_next)
+			{
 				fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
-				exit(1);
+				exit(2);
 			}
-			Root->window = new_window;
-			Root->north_prev = NULL;
-			Root->south_next = NULL;
-			Root->east_next = NULL;
-			Root->west_prev = NULL;
-			Current = Root; // Current is global, probably should be changed to local
-			geom = xcb_get_geometry_reply(connection, root_geom_cookie, NULL);
-			values[0] = geom->width - BORDER_WIDTH*2;
-			values[1] = geom->height - BORDER_WIDTH*2;
-			Root->width = geom->width - BORDER_WIDTH*2;
-			Root->height = geom->height - BORDER_WIDTH*2;
-			Root->x = 0;
-			Root->y = 0;
-			xcb_configure_window(connection, Root->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+			Current = Current->south_next;
+			Current->window = new_window;
+			Current->north_prev = Prev;
+			Current->west_prev = NULL;
+			Current->east_next = NULL;
+			Current->south_next = Temp.south_next;
+			Prev->south_next = Current;
+			if(Current->south_next) {
+				Current->south_next->north_prev = Current;
+			}
+			geom = xcb_get_geometry_reply(connection, focus_geom_cookie, NULL);
+			values[0] = geom->width;
+			values[1] = (geom->height + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2;
+			xcb_configure_window(connection, Prev->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+			Prev->width = values[0];
+			Prev->height = values[1];
+			values[0] = geom->x;
+			values[1] = geom->y + ((geom->height + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2) + BORDER_WIDTH*2;
+			xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
+			Current->x = values[0];
+			Current->y = values[1];
+			values[0] = geom->width;
+			values[1] = Prev->height;
+			if(geom->height%2) {
+				values[1]++;
+			}
+			xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+			Current->width = values[0];
+			Current->height = values[1];
 		}
-		else if(split_mode == 'v')
+	}
+	else
+	{
+		Current = bfs_search(tree_root, after_which);
+		if(Current)
 		{
-			Current = bfs_search(tree_root, after_which);
-			if(Current)
+			Temp = *Current;
+			Prev = Current;
+			Current->east_next = (Window*) malloc(sizeof(Window));
+			if(!Current->east_next)
 			{
-				Temp = *Current;
-				Prev = Current;
-				Current->south_next = (Window*) malloc(sizeof(Window));
-				if(!Current->south_next)
-				{
-					fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
-					exit(2);
-				}
-				Current = Current->south_next;
-				Current->window = new_window;
-				Current->north_prev = Prev;
-				Current->west_prev = NULL;
-				Current->east_next = NULL;
-				Current->south_next = Temp.south_next;
-				Prev->south_next = Current;
-				if(Current->south_next) {
-					Current->south_next->north_prev = Current;
-				}
-				geom = xcb_get_geometry_reply(connection, focus_geom_cookie, NULL);
-				values[0] = geom->width;
-				values[1] = (geom->height + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2;
-				xcb_configure_window(connection, Prev->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
-				Prev->width = values[0];
-				Prev->height = values[1];
-				values[0] = geom->x;
-				values[1] = geom->y + ((geom->height + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2) + BORDER_WIDTH*2;
-				xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
-				Current->x = values[0];
-				Current->y = values[1];
-				values[0] = geom->width;
-				values[1] = Prev->height;
-				if(geom->height%2) {
-					values[1]++;
-				}
-				xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
-				Current->width = values[0];
-				Current->height = values[1];
+				fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
+				exit(2);
 			}
-		}
-		else
-		{
-			Current = bfs_search(tree_root, after_which);
-			if(Current)
-			{
-				Temp = *Current;
-				Prev = Current;
-				Current->east_next = (Window*) malloc(sizeof(Window));
-				if(!Current->east_next)
-				{
-					fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
-					exit(2);
-				}
-				Current = Current->east_next;
-				Current->window = new_window;
-				Current->north_prev = NULL;
-				Current->west_prev = Prev;
-				Current->east_next = Temp.east_next;
-				Current->south_next = NULL;
-				Prev->east_next = Current;
-				if(Current->east_next) {
-					Current->east_next->west_prev = Current;
-				}
-				geom = xcb_get_geometry_reply(connection, focus_geom_cookie, NULL);
-				values[0] = (geom->width + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2;
-				values[1] = geom->height;
-				xcb_configure_window(connection, Prev->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
-				Prev->width = values[0];
-				Prev->height = values[1];
-				values[0] = geom->x + ((geom->width + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2) + BORDER_WIDTH*2;
-				values[1] = geom->y;
-				xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
-				Current->x = values[0];
-				Current->y = values[1];
-				values[0] = Prev->width;
-				if(geom->width%2) {
-					values[0]++;
-				}
-				values[1] = geom->height;
-				xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_WIDTH |XCB_CONFIG_WINDOW_HEIGHT, values);
-				Current->width = values[0];
-				Current->height = values[1];
+			Current = Current->east_next;
+			Current->window = new_window;
+			Current->north_prev = NULL;
+			Current->west_prev = Prev;
+			Current->east_next = Temp.east_next;
+			Current->south_next = NULL;
+			Prev->east_next = Current;
+			if(Current->east_next) {
+				Current->east_next->west_prev = Current;
 			}
+			geom = xcb_get_geometry_reply(connection, focus_geom_cookie, NULL);
+			values[0] = (geom->width + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2;
+			values[1] = geom->height;
+			xcb_configure_window(connection, Prev->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+			Prev->width = values[0];
+			Prev->height = values[1];
+			values[0] = geom->x + ((geom->width + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2) + BORDER_WIDTH*2;
+			values[1] = geom->y;
+			xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
+			Current->x = values[0];
+			Current->y = values[1];
+			values[0] = Prev->width;
+			if(geom->width%2) {
+				values[0]++;
+			}
+			values[1] = geom->height;
+			xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_WIDTH |XCB_CONFIG_WINDOW_HEIGHT, values);
+			Current->width = values[0];
+			Current->height = values[1];
 		}
+	}
 }
 
 Window* bfs_search(Window *current, xcb_window_t key)
