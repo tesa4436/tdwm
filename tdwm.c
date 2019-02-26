@@ -185,49 +185,48 @@ void recursive_resize_and_repos_vertical(Window *current, uint32_t y, double rem
 	if(!current || (lim_window ? (((lim_window->x + lim_window->width + BORDER_WIDTH*2) == current->x) ? 1 : 0 ) || (current->width > lim_window->width) : 0)) {
 		return;
 	}
-	printf("call\n");
 	double temp;
 	current->y = y;
 	current->old_height = current->height;
-	if(current->west_prev) {
-		remainder = 0;		
-	}
 	temp = (double)(current->height * (lim_window->height + local_height)) / local_height;
 	current->height = (current->height * (lim_window->height + local_height)) / local_height;
 	remainder += temp - (uint32_t) temp;
 	if(!current->south_next && remainder) {
 		Window *current2 = current;
-		if((remainder - (uint32_t) remainder) >= 0.5) { // floating point hell, sometimes the result is *.9999643758456238 for example... 
-			remainder = (uint32_t) ++remainder;	// i was lucky to notice this early on. floating point, mmmmmmmhmmmm spicy....
+		double temp2 = remainder;
+		if((temp2 - (uint32_t) temp2) >= 0.9) { // floating point hell, sometimes the result is *.9999643758456238 for example... 
+			temp2 = (uint32_t) ++temp2;	// i was lucky to notice this early on. floating point, mmmmmmmhmmmm spicy....
 		} else {
-			remainder = (uint32_t) remainder;
+			temp2 = (uint32_t) temp2;
 		}
-		remainder--;
-		current2->height++;
-		while (current2->north_prev && remainder) {
-			current2 = current2->north_prev;
-			remainder--;
+		if(temp2) {
+			temp2--;
 			current2->height++;
-			if(!current2->north_prev && remainder) { //not sure if the following block is necessary, probably not
-				current2->height += remainder;
-				remainder = 0;
+			while (current2->north_prev && temp2) {
+				current2 = current2->north_prev;
+				temp2--;
+				current2->height++;
+				if(!current2->north_prev && temp2) { //not sure if the following block is necessary, probably not
+					current2->height += temp2;
+					temp2 = 0;
+				}
+				xcb_configure_window(connection, current2->window, XCB_CONFIG_WINDOW_HEIGHT, &current2->height);
+				if(!temp2) {
+					break;
+				}
 			}
-			xcb_configure_window(connection, current2->window, XCB_CONFIG_WINDOW_HEIGHT, &current2->height);
-			if(!remainder) {
-				break;
+			while(current2->south_next) {
+				current2->south_next->y = current2->y + current2->height + BORDER_WIDTH*2;
+				if(current2->south_next != current) {
+					xcb_configure_window(connection, current2->south_next->window, XCB_CONFIG_WINDOW_Y, &current2->south_next->y);		
+				}
+				current2 = current2->south_next;
 			}
-		}
-		while(current2->south_next) {
-			current2->south_next->y = current2->y + current2->height + BORDER_WIDTH*2;
-			if(current2->south_next != current) {
-				xcb_configure_window(connection, current2->south_next->window, XCB_CONFIG_WINDOW_Y, &current2->south_next->y);		
-			}
-			current2 = current2->south_next;
 		}
 	}
 	xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_Y, &current->y);
 	xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_HEIGHT, &current->height);
-	recursive_resize_and_repos_vertical(current->east_next, y, remainder, lim_window, local_height);
+	recursive_resize_and_repos_vertical(current->east_next, y, remainder - (temp - (uint32_t) temp), lim_window, local_height);
 	recursive_resize_and_repos_vertical(current->south_next, current->y + current->height + BORDER_WIDTH*2, remainder, lim_window, local_height);
 }
 void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, double remainder, Window *lim_window, uint32_t local_width)
@@ -238,48 +237,52 @@ void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, double r
 	double temp;
 	current->x = x;
 	current->old_width = current->width;
-	if(current->north_prev) {
-		remainder = 0;		
-	}
 	temp = (double)(current->width * (lim_window->width + local_width)) / local_width;
 	current->width = (uint32_t) temp;
 	remainder += temp - (uint32_t) temp;
-	printf("temp before round: %.50f at %d, local_width %u, current width %u\n", (temp - (uint32_t)temp), current->window, local_width, current->width);
-	if(!current->east_next && remainder) {
+	printf("rem before round: %.50f at %d, local_width %u, current width %u\n", remainder, current->window, local_width, current->width);
+	if(!current->east_next) {
+		printf("end %.50f %.50f at %d\n", remainder, temp, current->window);
+	}
+	if(!current->east_next && remainder && 0) {
 		Window *current2 = current;
-		printf("end %.50f, %.50f prop at %d\n", remainder, (double)current->width / (local_width + lim_window->width), current->window);
-		if((remainder - (uint32_t) remainder) >= 0.5) { // floating point hell, sometimes the result is *.9999643758456238 for example... 
-			remainder = (uint32_t) ++remainder;	// i was lucky to notice this early on. floating point, mmmmmmmhmmmm spicy....
+		temp = (double)((local_width - current->width) * (lim_window->width + local_width)) / local_width;
+		temp -= (uint32_t) temp;
+		double temp2 = remainder;
+		if((temp2 - (uint32_t) temp2) >= 0.9) { // floating point hell, sometimes the result is *.9999643758456238 for example... 
+			temp2 = (uint32_t) ++temp2;	// i was lucky to notice this early on. floating point, mmmmmmmhmmmm spicy....
 		} else {
-			remainder = (uint32_t) remainder;
+			temp2 = (uint32_t) temp2;
 		}
-		remainder--;
-		current2->width++;
-		while (current2->west_prev && remainder) {
-			current2 = current2->west_prev;
-			remainder--;
+		if(temp2) {
+			temp2--;
 			current2->width++;
-			if(!current2->west_prev && remainder) { //not sure if the following block is necessary, probably not
-				current2->width += remainder;
-				remainder = 0;
+			while (current2->west_prev && temp2) {
+				current2 = current2->west_prev;
+				temp2--;
+				current2->width++;
+				if(!current2->west_prev && temp2) { //not sure if the following block is necessary, probably not
+					current2->width += temp2;
+					temp2 = 0;
+				}
+				xcb_configure_window(connection, current2->window, XCB_CONFIG_WINDOW_WIDTH, &current2->width);
+				if(!temp2) {
+					break;
+				}
 			}
-			xcb_configure_window(connection, current2->window, XCB_CONFIG_WINDOW_WIDTH, &current2->width);
-			if(!remainder) {
-				break;
+			while(current2->east_next) {
+				current2->east_next->x = current2->x + current2->width + BORDER_WIDTH*2;
+				if(current2->east_next != current) {
+					xcb_configure_window(connection, current2->east_next->window, XCB_CONFIG_WINDOW_X, &current2->east_next->x);		
+				}
+				current2 = current2->east_next;
 			}
-		}
-		while(current2->east_next) {
-			current2->east_next->x = current2->x + current2->width + BORDER_WIDTH*2;
-			if(current2->east_next != current) {
-				xcb_configure_window(connection, current2->east_next->window, XCB_CONFIG_WINDOW_X, &current2->east_next->x);		
-			}
-			current2 = current2->east_next;
 		}
 	}
 	xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_X, &current->x);
 	xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_WIDTH, &current->width);
 	recursive_resize_and_repos_horizontal(current->east_next, current->x + current->width + BORDER_WIDTH*2, remainder, lim_window, local_width);		
-	recursive_resize_and_repos_horizontal(current->south_next, current->x, remainder, lim_window, local_width);
+	recursive_resize_and_repos_horizontal(current->south_next, current->x, remainder - (temp - (uint32_t) temp), lim_window, local_width);
 }
 
 void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window_t new_window) // this function uses a bunch of global variables, TODO make local
