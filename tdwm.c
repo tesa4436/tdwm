@@ -235,14 +235,17 @@ void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, double r
 		return;
 	}
 	double temp;
+	int diff;
 	current->x = x;
 	current->old_width = current->width;
 	temp = (double)(current->width * (lim_window->width + local_width)) / local_width;
 	current->width = (uint32_t) temp;
 	remainder += temp - (uint32_t) temp;
-	printf("rem before round: %.50f at %d, local_width %u, current width %u\n", remainder, current->window, local_width, current->width);
 	if(!current->east_next) {
-		printf("end %.50f %.50f at %d\n", remainder, temp, current->window);
+		int op1 = lim_window->x + lim_window->width + local_width - 1;
+		int op2 = current->x + current->width - 1;
+		diff = lim_window != current ? op1 - op2 : 0; 
+		printf("end %.50f %.50f %d %d %d at %d\n", remainder, temp, op1, op2, diff, current->window);
 	}
 	if(!current->east_next && remainder && 0) {
 		Window *current2 = current;
