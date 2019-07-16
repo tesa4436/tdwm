@@ -66,8 +66,7 @@ static void (*handler[XCB_GE_GENERIC]) (xcb_generic_event_t *) = {
 	[XCB_UNMAP_NOTIFY] = unmap_notify
 };
 
-static const struct // organisation of atoms in this array borrowed from dwm's source code
-{
+static const struct {
 	const char* name;
 	int number;
 	char isnet;
@@ -109,8 +108,7 @@ uint32_t calc_width_east(Window *current, Window *lim_window)
 		return 0;
 	uint32_t sum = 0;
 	sum+=current->width + BORDER_WIDTH*2;
-	while(current->east_next)
-	{
+	while(current->east_next) {
 		current = current->east_next;
 		if(lim_window)
 			if(current->height > lim_window->height)
@@ -126,8 +124,7 @@ uint32_t calc_height_south(Window *current, Window *lim_window)
 		return 0;
 	uint32_t sum = 0;
 	sum+=current->height + BORDER_WIDTH*2;
-	while(current->south_next)
-	{
+	while(current->south_next) {
 		current = current->south_next;
 		if(lim_window)
 			if(current->width > lim_window->width)
@@ -143,8 +140,7 @@ uint32_t calc_width_west(Window *current, Window *lim_window)
 		return 0;
 	uint32_t sum = 0;
 	sum+=current->width + BORDER_WIDTH*2;
-	while(current->west_prev)
-	{
+	while(current->west_prev) {
 		current = current->west_prev;
 		if(lim_window)
 			if(current->height > lim_window->height)
@@ -160,8 +156,7 @@ uint32_t calc_height_north(Window *current, Window *lim_window)
 		return 0;
 	uint32_t sum = 0;
 	sum+=current->height + BORDER_WIDTH*2;
-	while(current->north_prev)
-	{
+	while(current->north_prev) {
 		current = current->north_prev;
 		if(lim_window)
 			if(current->width > lim_window->width)
@@ -219,8 +214,7 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 {
 	xcb_get_geometry_cookie_t focus_geom_cookie = xcb_get_geometry(connection, focused_window);
 	Window Temp;
-	if(after_which == root)
-	{
+	if(after_which == root) {
 		xcb_get_geometry_cookie_t root_geom_cookie = xcb_get_geometry(connection, root);
 		Root = malloc(sizeof(Window));
 		if(!Root) {
@@ -255,8 +249,7 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 
 		if(split_mode == 'v') {
 			Current->south_next = malloc(sizeof(Window));
-			if(!Current->south_next)
-			{
+			if(!Current->south_next) {
 				fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
 				exit(2);
 			}
@@ -283,17 +276,15 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 			Current->y = values[1];
 			values[0] = geom->width;
 			values[1] = Prev->height;
-			if(geom->height%2) {
+			if(geom->height%2)
 				values[1]++;
-			}
 			xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
 			Current->width = values[0];
 			Current->height = values[1];
 		}
 		else {
 			Current->east_next = malloc(sizeof(Window));
-			if(!Current->east_next)
-			{
+			if(!Current->east_next) {
 				fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
 				exit(2);
 			}
@@ -319,9 +310,8 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 			Current->x = values[0];
 			Current->y = values[1];
 			values[0] = Prev->width;
-			if(geom->width%2) {
+			if(geom->width%2)
 				values[0]++;
-			}
 			values[1] = geom->height;
 			xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_WIDTH |XCB_CONFIG_WINDOW_HEIGHT, values);
 			Current->width = values[0];
@@ -353,8 +343,7 @@ Window* bfs_search(Window *current, xcb_window_t key)
 void print_node(Window *root, xcb_window_t win)
 {
 	Window *window = bfs_search(root, win);
-	if(window)
-	{
+	if(window) {
 		if(window == Root)
 			printf("----ROOT----\n");
 		printf("node %d\n",window->window);
@@ -378,27 +367,20 @@ void map_request(xcb_generic_event_t *ev)
 	xcb_window_t prop = 0;
 	values[0] = BORDER_WIDTH;
 	xcb_configure_window(connection, mapreq_ev->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
-	if(xcb_icccm_get_wm_transient_for_reply(connection, xcb_icccm_get_wm_transient_for(connection, mapreq_ev->window), &prop, NULL))
-	{
+	if(xcb_icccm_get_wm_transient_for_reply(connection, xcb_icccm_get_wm_transient_for(connection, mapreq_ev->window), &prop, NULL)) {
 		Current = bfs_search(Root, prop);
 		geom = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, mapreq_ev->window), NULL);
-		if((Current->width > geom->width) && (Current->height > geom->height))
-		{
+		if((Current->width > geom->width) && (Current->height > geom->height)) {
 			values[0] = Current->x + Current->width/2 - geom->width/2;
 			values[1] = Current->y + Current->height/2 - geom->height/2;
-		}
-		else
-		{
+		} else {
 			values[0] = Root->width/2;
 			values[1] = Root->height/2;
 		}
 		xcb_configure_window(connection, mapreq_ev->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
-	}
-	else {
+	} else
 		insert_window_after(Root, focused_window, mapreq_ev->window); // insert mapreq_ev->window after focused_window
-	}
-	if(xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL))
-	{
+	if(xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL)) {
 		xcb_icccm_wm_hints_set_normal(&wm_hints);
 		xcb_icccm_set_wm_hints(connection, mapreq_ev->window, &wm_hints);
 	}
@@ -409,9 +391,8 @@ void map_request(xcb_generic_event_t *ev)
 	xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, mapreq_ev->window, XCB_CURRENT_TIME);
 	xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, netatom[NetActiveWindow], XCB_WINDOW, 32, 1, &mapreq_ev->window);
 	xcb_flush(connection);
-	if(Current) {
+	if(Current)
 		free(geom);
-	}
 	free(ev);
 }
 
@@ -422,86 +403,58 @@ void unmap_notify(xcb_generic_event_t *ev)
 	uint32_t counter = 0;
 	
 	Current = bfs_search(Root, unmap_ev->window);
-	if(Current)
-	{
+	if(Current) {
 		char direction_east;
 		double mul;
 		uint32_t remainder, local_width, local_height;
 		Window *Temp1, *Temp2;
-		if(Current->east_next && Current->south_next)
-		{
+		if(Current->east_next && Current->south_next) {
 			direction_east = (Current->height + BORDER_WIDTH*2) < calc_height_south(Current->east_next, NULL) ? 0 : 1;
-			if(direction_east)
-			{
+			if(direction_east) {
 				Current2 = Current->east_next;
 				while(Current2->south_next)
-				{
 					Current2 = Current2->south_next;	
-				}
 				recursive_resize_and_repos_horizontal(Current->east_next, Current->x, Current, calc_width_east(Current->east_next, Current));
 				xcb_flush(connection);
 				Current2->south_next = Current->south_next;
 				Current->south_next->north_prev = Current2;
 
-				if(Current->north_prev)
-				{
+				if(Current->north_prev) {
 					Current->east_next->north_prev = Current->north_prev;
 					Current->north_prev->south_next = Current->east_next;
-				}
-				else
-				{
+				} else
 					Current->east_next->north_prev = NULL;
-				}
-				if(Current->west_prev)
-				{
+				if(Current->west_prev) {
 					Current->east_next->west_prev = Current->west_prev;
 					Current->west_prev->east_next = Current->east_next;
-				}
-				else
-				{
+				} else
 					Current->east_next->west_prev = NULL;
-				}
-			}
-			else
-			{
+			} else {
 				Current2 = Current->south_next;
 				while(Current2->east_next)
-				{
 					Current2 = Current2->east_next;	
-				}
 				recursive_resize_and_repos_vertical(Current->south_next, Current->y, Current, calc_height_south(Current->south_next, Current));
 				xcb_flush(connection);
 				Current2->east_next = Current->east_next;
 				Current->east_next->west_prev = Current2;
-				if(Current->west_prev)
-				{
+				if(Current->west_prev) {
 					Current->south_next->west_prev = Current->west_prev;
 					Current->west_prev->east_next = Current->south_next;
-				}
-				else
-				{
+				} else
 					Current->south_next->west_prev = NULL;
-				}
-				if(Current->north_prev)
-				{
+				if(Current->north_prev) {
 					Current->south_next->north_prev = Current->north_prev;
 					Current->north_prev->south_next = Current->south_next;
-				}
-				else
-				{
+				} else
 					Current->south_next->north_prev = NULL;
-				}
 			}
 			
-			if(Current == Root)
-			{
+			if(Current == Root) {
 				Root = direction_east ? Current->east_next : Current->south_next;
 				Root->north_prev = NULL;
 				Root->west_prev = NULL;
 			}
-		}	
-	  	else if(!Current->east_next && Current->south_next)
-		{
+		} else if(!Current->east_next && Current->south_next) {
 			Current2 = Current;
 			Temp1 = Current->east_next;
 			Temp2 = Current->south_next;
@@ -512,30 +465,22 @@ void unmap_notify(xcb_generic_event_t *ev)
 			printf("locals: %d %d\n", local_width, local_height);
 			Current->east_next = Temp1;
 			Current->south_next = Temp2;
-			if(Current == Root)
-			{
+			if(Current == Root) {
 				Root = Current->south_next;
 				Root->north_prev = NULL;
 				Root->west_prev = NULL;
-			}
-			else if(Current->west_prev)
-			{	
+			} else if(Current->west_prev) {	
 				Current->west_prev->east_next = Current->south_next;
 				Current->south_next->north_prev = NULL;
 				Current->south_next->west_prev = Current->west_prev;
-			}
-			else
-			{
+			} else {
 				Current->north_prev->south_next = Current->south_next;
 				Current->south_next->west_prev = NULL;
 				Current->south_next->north_prev = Current->north_prev;
 			}
 			if((Current->width + BORDER_WIDTH*2) >= calc_width_east(Current->south_next, NULL))
-			{
 				recursive_resize_and_repos_vertical(Current->south_next, Current->y, Current, calc_height_south(Current->south_next, Current));
-			}
-			else if(Current->north_prev)
-			{
+			else if(Current->north_prev) {
 				Window *Temp = Current->north_prev->south_next;
 				Current->north_prev->south_next = NULL;
 				while(Current2->north_prev && Current2->north_prev->width <= Current->width) {
@@ -543,9 +488,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 				}
 				recursive_resize_and_repos_vertical(Current2, Current2->y, Current, local_height);
 				Current->north_prev->south_next = Temp;
-			}
-			else if(Current->west_prev)
-			{
+			} else if(Current->west_prev) {
 				Window *Temp = Current->west_prev->east_next;
 				Current->west_prev->east_next = NULL;
 				while(Current2->west_prev && Current2->west_prev->height <= Current->height) {
@@ -555,9 +498,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 				Current->west_prev->east_next = Temp;
 			}
 			xcb_flush(connection);
-		}
-		else if(Current->east_next && !Current->south_next)
-		{
+		} else if(Current->east_next && !Current->south_next) {
 			Current2 = Current;
 			Temp1 = Current->east_next;
 			Temp2 = Current->south_next;
@@ -567,30 +508,22 @@ void unmap_notify(xcb_generic_event_t *ev)
 			local_width = calc_width_west(Current->west_prev, Current);
 			Current->east_next = Temp1;
 			Current->south_next = Temp2;
-			if(Current == Root)
-			{
+			if(Current == Root) {
 				Root = Current->east_next;
 				Root->north_prev = NULL;
 				Root->west_prev = NULL;
-			}
-			else if(Current->north_prev)
-			{
+			} else if(Current->north_prev) {
 				Current->north_prev->south_next = Current->east_next;
 				Current->east_next->west_prev = NULL;
 				Current->east_next->north_prev = Current->north_prev;
-			}
-			else
-			{
+			} else {
 				Current->west_prev->east_next = Current->east_next;
 				Current->east_next->north_prev = NULL;
 				Current->east_next->west_prev = Current->west_prev;
 			}
 			if((Current->height + BORDER_WIDTH*2) >= calc_height_south(Current->east_next, NULL))
-			{
 				recursive_resize_and_repos_horizontal(Current->east_next, Current->x, Current, calc_width_east(Current->east_next, Current));
-			}
-			else if(Current->north_prev)
-			{
+			else if(Current->north_prev) {
 				Window *Temp = Current->north_prev->south_next;
 				Current->north_prev->south_next = NULL;
 				while(Current2->north_prev && Current2->north_prev->width <= Current->width) {
@@ -598,9 +531,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 				}
 				recursive_resize_and_repos_vertical(Current2, Current2->y, Current, local_height);
 				Current->north_prev->south_next = Temp;
-			}
-			else if(Current->west_prev)
-			{
+			} else if(Current->west_prev) {
 				Window *Temp = Current->west_prev->east_next;
 				Current->west_prev->east_next = NULL;
 				while(Current2->west_prev && Current2->west_prev->height <= Current->height) {
@@ -610,20 +541,16 @@ void unmap_notify(xcb_generic_event_t *ev)
 				Current->west_prev->east_next = Temp;
 			}
 			xcb_flush(connection);
-		}
-		else
-		{
+		} else {
 			Current2 = Current;
-			if(Current->north_prev)
-			{
+			if(Current->north_prev) {
 				Current->north_prev->south_next = NULL;
 				while(Current2->north_prev && Current2->north_prev->width <= Current->width) {
 					Current2 = Current2->north_prev;
 				}
 				recursive_resize_and_repos_vertical(Current2, Current2->y, Current, calc_height_north(Current->north_prev, Current));
 			}
-			if(Current->west_prev)
-			{
+			if(Current->west_prev) {
 				Current->west_prev->east_next = NULL;
 				while(Current2->west_prev && Current2->west_prev->height <= Current->height) {
 					Current2 = Current2->west_prev;
@@ -635,8 +562,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 		free(Current);
 	}
 	
-	if(xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL))
-	{
+	if(xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL)) {
 		xcb_icccm_wm_hints_set_withdrawn(&wm_hints);
 		xcb_icccm_set_wm_hints(connection, unmap_ev->window, &wm_hints);
 	}
@@ -648,15 +574,12 @@ void key_press(xcb_generic_event_t *ev)
 {
 	xcb_key_press_event_t *key_event = (xcb_key_press_event_t *)ev;
 	//printf ("Key pressed in window\n");
-	if(key_event->child) // if event child is not null (not root window)
-	{
+	if(key_event->child) {
 		win = key_event->child;
 		geom = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, win), NULL);
 		
-		switch(key_event->detail)
-		{
-			case 111: //up arrow key keycode
-			{
+		switch(key_event->detail) {
+			case 111: { //up arrow key keycode
 				values[0] = geom->x + 0;
 				values[1] = geom->y - 10;
 				xcb_configure_window(connection, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
@@ -664,9 +587,7 @@ void key_press(xcb_generic_event_t *ev)
 			}
 			break;
 	
-			case 113: //left arrow key keycode
-			{
-				
+			case 113: { //left arrow key keycode
 				values[0] = geom->x - 10;
 				values[1] = geom->y + 0;
 				xcb_configure_window(connection, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
@@ -675,9 +596,7 @@ void key_press(xcb_generic_event_t *ev)
 			}
 			break;
 	
-			case 114: //right arrow key keycode
-			{
-				
+			case 114: { //right arrow key keycode
 				values[0] = geom->x + 10;
 				values[1] = geom->y + 0;
 				xcb_configure_window(connection, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
@@ -698,8 +617,7 @@ void key_press(xcb_generic_event_t *ev)
 			}
 			break;
 
-			case 116: //down arrow key keycode
-			{
+			case 116: { //down arrow key keycode
 				values[0] = geom->x + 0;
 				values[1] = geom->y + 10;
 				xcb_configure_window(connection, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
@@ -707,14 +625,12 @@ void key_press(xcb_generic_event_t *ev)
 			}
 			break;
 		
-			case 55:
-			{
+			case 55: {
 				split_mode = 'v';
 			}
 			break;
 		
-			case 43:
-			{
+			case 43: {
 				split_mode = 'h';
 			}
 			break;
@@ -787,8 +703,7 @@ uint32_t get_color(uint16_t r, uint16_t g, uint16_t b) // TODO: error checking
 void setup(void)
 {
 	connection = xcb_connect(NULL, NULL);
-	if(xcb_connection_has_error(connection))
-	{
+	if(xcb_connection_has_error(connection)) {
 		fprintf(stderr, "tdwm: could not connect to X server, exiting\n");
 		exit(1);
 	}
@@ -808,11 +723,9 @@ void setup(void)
 	for(int i=0; i<SETUP_NUM_ATOMS; i++) {
 		atom_cookie[i] = xcb_intern_atom(connection, 0, strlen(setup_atoms[i].name), setup_atoms[i].name);
 	}
-	for(int i=0; i<SETUP_NUM_ATOMS; i++)
-	{
+	for(int i=0; i<SETUP_NUM_ATOMS; i++) {
 		xcb_intern_atom_reply_t *reply;
-		if((reply = xcb_intern_atom_reply(connection, atom_cookie[i], NULL)))
-		{
+		if((reply = xcb_intern_atom_reply(connection, atom_cookie[i], NULL))) {
 			if(setup_atoms[i].isnet)
 				netatom[setup_atoms[i].number] = reply->atom;
 			else
