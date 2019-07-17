@@ -1,0 +1,4 @@
+#!/bin/sh
+Xephyr :1 -noreset -screen 1001x1001 -no-host-grab &
+sleep 0.1
+xsetroot -solid green -d :1
