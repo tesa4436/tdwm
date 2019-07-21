@@ -1,106 +1,16 @@
-#include <xcb/xcb.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <xcb/xcb.h>
 #include <xcb/xcb_atom.h>
-#include <xcb/xcb_icccm.h>
 //#include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_keysyms.h>
+#include "window.h"
+#include "declarations.h"
 #define SOUTH_MODE 0
 #define EAST_MODE 1
 #define BORDER_WIDTH 0
-
-
-enum { NetSupported, NetWMName, NetWMState, NetWMFullscreen, NetActiveWindow, NetWMWindowType, 
-	NetWMWindowTypeDialog, NetClientList, NetLast }; /* EWMH atoms */
-enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast }; /* default atoms */
-enum {
-	AT_NORTH_EDGE =	1<<0,
-	AT_EAST_EDGE =	1<<1,
-	AT_SOUTH_EDGE =	1<<2,
-	AT_WEST_EDGE =	1<<3,
-	BREAK_POINT =	1<<4
-};
-
-typedef struct win {
-	xcb_window_t window;
-	uint32_t x, y, width, height;
-	uint32_t prev_x, prev_y, prev_width, prev_height;
-	uint8_t flags;
-	struct win *east_next;
-	struct win *south_next;
-	struct win *north_prev;
-	struct win *west_prev;
-} Window;
-
-#define SETUP_NUM_ATOMS (WMLast + NetLast)
-
-void map_request(xcb_generic_event_t *ev);
-void unmap_notify(xcb_generic_event_t *ev);
-void key_press(xcb_generic_event_t *ev);
-void configure_request(xcb_generic_event_t *ev);
-void enter_notify(xcb_generic_event_t *ev);
-uint32_t calc_width_east(Window *current, Window *lim_window);
-uint32_t calc_width_west(Window *current, Window *lim_window);
-uint32_t calc_height_south(Window *current, Window *lim_window);
-uint32_t calc_height_north(Window *current, Window *lim_window);
-void focus_in(xcb_generic_event_t *ev);
-void focus_out(xcb_generic_event_t *ev);
-Window* bfs_search(Window *current, xcb_window_t key);
-void insert_window_after(Window *root, xcb_window_t after_which, xcb_window_t new_window);
-
-static void (*handler[XCB_GE_GENERIC]) (xcb_generic_event_t *) = {
-	[XCB_BUTTON_PRESS] = NULL,
-	[XCB_CONFIGURE_REQUEST] = configure_request,
-	[XCB_CONFIGURE_NOTIFY] = NULL,
-	[XCB_DESTROY_NOTIFY] = NULL,
-	[XCB_ENTER_NOTIFY] = enter_notify,
-	[XCB_EXPOSE] = NULL,
-	[XCB_FOCUS_IN] = focus_in,
-	[XCB_FOCUS_OUT] = focus_out,
-	[XCB_KEY_PRESS] = key_press,
-	[XCB_MAP_NOTIFY] = NULL,
-	[XCB_MAP_REQUEST] = map_request,
-	[XCB_PROPERTY_NOTIFY] = NULL,
-	[XCB_UNMAP_NOTIFY] = unmap_notify
-};
-
-static const struct {
-	const char* name;
-	int number;
-	char isnet;
-} setup_atoms[SETUP_NUM_ATOMS] = {
-	{ "_NET_SUPPORTED",		NetSupported, 1 },
-	{ "_NET_WM_NAME",		NetWMName, 1 },
-	{ "_NET_WM_STATE",		NetWMState, 1 },
-	{ "_NET_WM_STATE_FULLSCREEN",	NetWMFullscreen, 1 },
-	{ "_NET_ACTIVE_WINDOW",		NetActiveWindow, 1 },
-	{ "_NET_WM_WINDOW_TYPE",	NetWMWindowType, 1 },
-	{ "_NET_WM_WINDOW_TYPE_DIALOG",	NetWMWindowTypeDialog, 1 },
-	{ "_NET_CLIENT_LIST",		NetClientList, 1 },
-	{ "WM_PROTOCOLS",		WMProtocols, 0 },
-	{ "WM_DELETE_WINDOW",		WMDelete, 0 },
-	{ "WM_STATE",			WMState, 0 }, 
-	{ "WM_TAKE_FOCUS",		WMTakeFocus, 0 } 
-};
-
-static xcb_atom_t wmatom[WMLast], netatom[NetLast];
-static uint32_t values[3];
-static xcb_connection_t *connection;
-static xcb_screen_t *screen;
-static xcb_drawable_t win;
-static xcb_drawable_t root;
-static xcb_generic_event_t *ev;
-static xcb_get_geometry_reply_t *geom;
-static xcb_get_window_attributes_reply_t* attr;
-static xcb_query_tree_reply_t *query_tree;
-static uint32_t infocus_color, outfocus_color;
-static char split_mode = 'h';
-static xcb_window_t focused_window;
-static Window *Root, *Current, *Current2, *Prev; // "Root" here refers not to the X root window, but the root of the binary tree
-static xcb_gcontext_t gc;
-static xcb_icccm_wm_hints_t wm_hints;
 
 uint32_t calc_width_east(Window *current, Window *lim_window)
 {
@@ -182,33 +92,87 @@ void recursive_resize_and_repos_vertical(Window *current, uint32_t y, Window *li
 	}
 	current->y = y;
 	current->height = (current->height * (lim_window->height + local_height)) / local_height;
-	if(!current->north_prev && !current->west_prev) {
-		current->height += screen->height_in_pixels - current->height;
-	} else if(!current->south_next) {
-		current->height += (current->prev_y + current->prev_height) - (current->y + current->height);	
-	}
 	xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_Y, &current->y);
 	xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_HEIGHT, &current->height);
 	recursive_resize_and_repos_vertical(current->east_next, y, lim_window, local_height);
 	recursive_resize_and_repos_vertical(current->south_next, current->y + current->height + BORDER_WIDTH*2, lim_window, local_height);
 }
+
 void recursive_resize_and_repos_horizontal(Window *current, uint32_t x, Window *lim_window, uint32_t local_width)
 {
 	if(!current || (lim_window ? (((lim_window->y + lim_window->height + BORDER_WIDTH*2) == current->y) ? 1 : 0 ) || (current->height > lim_window->height) : 0)) {
 		return;
 	}
 	current->x = x;
+	printf("%u %u BOI\n", (current->width * (lim_window->width + local_width)), local_width);
 	current->width = (current->width * (lim_window->width + local_width)) / local_width;
-	if(!current->north_prev && !current->west_prev) {
-		current->width += screen->width_in_pixels - current->width;
-	} else if(!current->east_next) {
-		current->width += (current->prev_x + current->prev_width) - (current->x + current->width);	
-	}
 	xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_X, &current->x);
 	xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_WIDTH, &current->width);
 	recursive_resize_and_repos_horizontal(current->east_next, current->x + current->width + BORDER_WIDTH*2, lim_window, local_width);		
 	recursive_resize_and_repos_horizontal(current->south_next, current->x, lim_window, local_width);
 }
+
+void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_t local_width)
+{
+	if(!current)
+		return;
+	Window **stack = malloc(sizeof(Window*) * STACK_SIZE);
+	uint32_t *rems_stack = calloc(sizeof(uint32_t), STACK_SIZE);
+	if(!stack || !rems_stack)
+		return;
+	size_t stack_size = STACK_SIZE;
+	size_t wincount = 1;
+	size_t remsum;
+	stack[0] = current;
+	while(wincount) {
+		current = stack[wincount - 1];
+		remsum = rems_stack[wincount - 1];
+		if((lim_window ? (((lim_window->y + lim_window->height + BORDER_WIDTH*2) == current->y) ? 1 : 0 ) || (current->height > lim_window->height) : 0))
+			break;
+		if(current->west_prev)
+			current->x = current->west_prev->x + current->west_prev->width + BORDER_WIDTH*2;
+		else if(current->north_prev)
+			current->x = current->north_prev->x;
+		else
+			current->x = x;
+		remsum += (current->width * (lim_window->width + local_width)) % local_width; //TODO 
+		current->width = (current->width * (lim_window->width + local_width)) / local_width;
+		wincount--;
+		xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_X, &current->x);
+		xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_WIDTH, &current->width);
+		if(current->east_next) {
+			wincount++;
+			if(wincount == stack_size) {
+				stack_size *= 2;
+				stack = realloc(stack, stack_size);
+				rems_stack = realloc(rems_stack, stack_size);
+				if(!stack || !rems_stack)
+					break;
+				memset(rems_stack + (stack_size/2), 0, stack_size/2);
+			}
+			rems_stack[wincount - 1] = remsum;
+			stack[wincount - 1] = current->east_next;
+		}
+		if(current->south_next) {
+			wincount++;
+			if(wincount == stack_size) {
+				stack_size *= 2;
+				stack = realloc(stack, stack_size);
+				rems_stack = realloc(rems_stack, stack_size);
+				if(!stack || !rems_stack)
+					break;
+				memset(rems_stack + (stack_size/2), 0, stack_size/2);
+			}
+			rems_stack[wincount - 1] = remsum;
+			stack[wincount - 1] = current->south_next;
+		}
+		if(!current->east_next)
+			printf("rem sum pls %d %lu %u %lu %lu\n", current->window, remsum, local_width, remsum / local_width, remsum % local_width);
+	}
+	free(stack);
+	free(rems_stack);
+}
+
 
 void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window_t new_window) // this function uses a bunch of global variables, TODO make local
 {
@@ -218,7 +182,7 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 		xcb_get_geometry_cookie_t root_geom_cookie = xcb_get_geometry(connection, root);
 		Root = malloc(sizeof(Window));
 		if(!Root) {
-			fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
+			fprintf(stderr, "tdwm: error: could not allocate %lu bytes\n", sizeof(Window));
 			exit(1);
 		}
 		Root->window = new_window;
@@ -250,7 +214,7 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 		if(split_mode == 'v') {
 			Current->south_next = malloc(sizeof(Window));
 			if(!Current->south_next) {
-				fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
+				fprintf(stderr, "tdwm: error: could not allocate %lu bytes\n", sizeof(Window));
 				exit(2);
 			}
 			Current = Current->south_next;
@@ -260,9 +224,8 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 			Current->east_next = NULL;
 			Current->south_next = Temp.south_next;
 			Prev->south_next = Current;
-			if(Current->south_next) {
+			if(Current->south_next)
 				Current->south_next->north_prev = Current;
-			}
 			geom = xcb_get_geometry_reply(connection, focus_geom_cookie, NULL);
 			values[0] = geom->width;
 			values[1] = (geom->height + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2;
@@ -281,11 +244,10 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 			xcb_configure_window(connection, Current->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
 			Current->width = values[0];
 			Current->height = values[1];
-		}
-		else {
+		} else {
 			Current->east_next = malloc(sizeof(Window));
 			if(!Current->east_next) {
-				fprintf(stderr, "tdwm: error: could not allocate %u bytes\n", sizeof(Window));
+				fprintf(stderr, "tdwm: error: could not allocate %lu bytes\n", sizeof(Window));
 				exit(2);
 			}
 			Current = Current->east_next;
@@ -295,9 +257,8 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 			Current->east_next = Temp.east_next;
 			Current->south_next = NULL;
 			Prev->east_next = Current;
-			if(Current->east_next) {
+			if(Current->east_next)
 				Current->east_next->west_prev = Current;
-			}
 			geom = xcb_get_geometry_reply(connection, focus_geom_cookie, NULL);
 			values[0] = (geom->width + BORDER_WIDTH*2) / 2 - BORDER_WIDTH*2;
 			values[1] = geom->height;
@@ -414,7 +375,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 				Current2 = Current->east_next;
 				while(Current2->south_next)
 					Current2 = Current2->south_next;	
-				recursive_resize_and_repos_horizontal(Current->east_next, Current->x, Current, calc_width_east(Current->east_next, Current));
+				change_x_and_width(Current->east_next, Current->x, Current, calc_width_east(Current->east_next, Current));
 				xcb_flush(connection);
 				Current2->south_next = Current->south_next;
 				Current->south_next->north_prev = Current2;
@@ -494,7 +455,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 				while(Current2->west_prev && Current2->west_prev->height <= Current->height) {
 					Current2 = Current2->west_prev;
 				}
-				recursive_resize_and_repos_horizontal(Current2, Current2->x, Current, local_width);
+				change_x_and_width(Current2, Current2->x, Current, local_width);
 				Current->west_prev->east_next = Temp;
 			}
 			xcb_flush(connection);
@@ -522,7 +483,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 				Current->east_next->west_prev = Current->west_prev;
 			}
 			if((Current->height + BORDER_WIDTH*2) >= calc_height_south(Current->east_next, NULL))
-				recursive_resize_and_repos_horizontal(Current->east_next, Current->x, Current, calc_width_east(Current->east_next, Current));
+				change_x_and_width(Current->east_next, Current->x, Current, calc_width_east(Current->east_next, Current));
 			else if(Current->north_prev) {
 				Window *Temp = Current->north_prev->south_next;
 				Current->north_prev->south_next = NULL;
@@ -537,7 +498,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 				while(Current2->west_prev && Current2->west_prev->height <= Current->height) {
 					Current2 = Current2->west_prev;
 				}
-				recursive_resize_and_repos_horizontal(Current2, Current2->x, Current, local_width);
+				change_x_and_width(Current2, Current2->x, Current, local_width);
 				Current->west_prev->east_next = Temp;
 			}
 			xcb_flush(connection);
@@ -555,7 +516,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 				while(Current2->west_prev && Current2->west_prev->height <= Current->height) {
 					Current2 = Current2->west_prev;
 				}
-				recursive_resize_and_repos_horizontal(Current2, Current2->x, Current, calc_width_west(Current->west_prev, Current));
+				change_x_and_width(Current2, Current2->x, Current, calc_width_west(Current->west_prev, Current));
 			}
 			xcb_flush(connection);
 		}

@@ -1,4 +1,4 @@
-
+#include <xcb/xcb_icccm.h>
 enum { NetSupported, NetWMName, NetWMState, NetWMFullscreen, NetActiveWindow, NetWMWindowType, 
 	NetWMWindowTypeDialog, NetClientList, NetLast }; /* EWMH atoms */
 enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast }; /* default atoms */
@@ -10,18 +10,8 @@ enum {
 	BREAK_POINT =	1<<4
 };
 
-typedef struct win {
-	xcb_window_t window;
-	uint32_t x, y, width, height;
-	uint32_t prev_x, prev_y, prev_width, prev_height;
-	uint8_t flags;
-	struct win *east_next;
-	struct win *south_next;
-	struct win *north_prev;
-	struct win *west_prev;
-} Window;
-
 #define SETUP_NUM_ATOMS (WMLast + NetLast)
+#define STACK_SIZE 16
 
 void map_request(xcb_generic_event_t *ev);
 void unmap_notify(xcb_generic_event_t *ev);
