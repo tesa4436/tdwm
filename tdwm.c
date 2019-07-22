@@ -116,17 +116,19 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 {
 	if(!current)
 		return;
-	Window **stack = malloc(sizeof(Window*) * STACK_SIZE);
-	uint32_t *rems_stack = calloc(sizeof(uint32_t), STACK_SIZE);
-	if(!stack || !rems_stack)
+	struct stack_node *stack = malloc(sizeof(struct stack_node) * STACK_SIZE);
+	if(!stack)
 		return;
 	size_t stack_size = STACK_SIZE;
 	size_t wincount = 1;
-	size_t remsum;
-	stack[0] = current;
+	uint32_t remsum, rem, oldwidth, widthsum, oldremsum;
+	stack[0].win = current;
+	stack[0].remsum = 0;
+	stack[0].widthsum = 0;
 	while(wincount) {
-		current = stack[wincount - 1];
-		remsum = rems_stack[wincount - 1];
+		current = stack[wincount - 1].win;
+		remsum = stack[wincount - 1].remsum;
+		widthsum = stack[wincount - 1].widthsum;
 		if((lim_window ? (((lim_window->y + lim_window->height + BORDER_WIDTH*2) == current->y) ? 1 : 0 ) || (current->height > lim_window->height) : 0))
 			break;
 		if(current->west_prev)
@@ -135,7 +137,13 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 			current->x = current->north_prev->x;
 		else
 			current->x = x;
-		remsum += (current->width * (lim_window->width + local_width)) % local_width; //TODO 
+		rem = (current->width * (lim_window->width + local_width)) % local_width; 
+		remsum += rem;
+		widthsum += current->width;
+		oldremsum = remsum;
+		if(!current->east_next && lim_window->east_next && lim_window->east_next->x + local_width > current->x + current->width)
+			remsum -= ((local_width - widthsum) * (lim_window->width + local_width)) % local_width; 
+		oldwidth = current->width;
 		current->width = (current->width * (lim_window->width + local_width)) / local_width;
 		wincount--;
 		xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_X, &current->x);
@@ -144,33 +152,30 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 			wincount++;
 			if(wincount == stack_size) {
 				stack_size *= 2;
-				stack = realloc(stack, stack_size);
-				rems_stack = realloc(rems_stack, stack_size);
-				if(!stack || !rems_stack)
+				stack = realloc(stack, sizeof(struct stack_node) * stack_size);
+				if(!stack)
 					break;
-				memset(rems_stack + (stack_size/2), 0, stack_size/2);
 			}
-			rems_stack[wincount - 1] = remsum;
-			stack[wincount - 1] = current->east_next;
+			stack[wincount - 1].remsum = remsum;
+			stack[wincount - 1].win = current->east_next;
+			stack[wincount - 1].widthsum = widthsum;
 		}
 		if(current->south_next) {
 			wincount++;
 			if(wincount == stack_size) {
 				stack_size *= 2;
-				stack = realloc(stack, stack_size);
-				rems_stack = realloc(rems_stack, stack_size);
-				if(!stack || !rems_stack)
+				stack = realloc(stack, sizeof(struct stack_node) * stack_size);
+				if(!stack)
 					break;
-				memset(rems_stack + (stack_size/2), 0, stack_size/2);
 			}
-			rems_stack[wincount - 1] = remsum;
-			stack[wincount - 1] = current->south_next;
+			stack[wincount - 1].remsum = oldremsum - rem;
+			stack[wincount - 1].win = current->south_next;
+			stack[wincount - 1].widthsum = widthsum - oldwidth;
 		}
 		if(!current->east_next)
-			printf("rem sum pls %d %lu %u %lu %lu\n", current->window, remsum, local_width, remsum / local_width, remsum % local_width);
+			printf("rem sum pls %d %u %u %u %u\n", current->window, remsum, local_width, remsum / local_width, remsum % local_width);
 	}
 	free(stack);
-	free(rems_stack);
 }
 
 

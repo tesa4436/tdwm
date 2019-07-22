@@ -10,3 +10,8 @@ typedef struct win {
 	struct win *west_prev;
 } Window;
 
+struct stack_node {
+	Window *win;
+	uint32_t remsum;
+	uint32_t widthsum;
+};
