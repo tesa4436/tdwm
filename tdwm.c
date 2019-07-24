@@ -86,6 +86,8 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 	size_t stack_size = STACK_SIZE;
 	size_t wincount = 1;
 	uint32_t remsum, rem, oldwidth, widthsum, oldremsum;
+	unsigned char offset2 = X, offset3 = HEIGHT, offset4 = WEST, offset5 = NORTH, offset6 = EAST;
+	uint16_t mask1 = XCB_CONFIG_WINDOW_X, mask2 = XCB_CONFIG_WINDOW_WIDTH;
 	stack[0].win = current;
 	stack[0].remsum = 0;
 	stack[0].widthsum = 0;
@@ -93,26 +95,26 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 		current = stack[wincount - 1].win;
 		remsum = stack[wincount - 1].remsum;
 		widthsum = stack[wincount - 1].widthsum;
-		widthsum += current->dimensions[WIDTH];
-		if((lim_window ? (((lim_window->dimensions[Y] + lim_window->dimensions[HEIGHT] + BORDER_WIDTH*2) == current->dimensions[Y]) ? 1 : 0 )
-			|| (current->dimensions[HEIGHT] > lim_window->dimensions[HEIGHT]) : 0))
+		widthsum += current->dimensions[offset2 + 2];
+		if((lim_window ? (((lim_window->dimensions[offset3 - 2] + lim_window->dimensions[offset3] + BORDER_WIDTH*2) == current->dimensions[offset3 -2]) ? 1 : 0 )
+			|| (current->dimensions[offset3] > lim_window->dimensions[offset3]) : 0))
 			break;
-		if(current->next[WEST])
-			current->dimensions[X] = current->next[WEST]->dimensions[X] + current->next[WEST]->dimensions[WIDTH] + BORDER_WIDTH*2;
-		else if(current->next[NORTH])
-			current->dimensions[X] = current->next[NORTH]->dimensions[X];
+		if(current->next[offset4])
+			current->dimensions[offset2] = current->next[offset4]->dimensions[offset2] + current->next[offset4]->dimensions[offset2 + 2] + BORDER_WIDTH*2;
+		else if(current->next[offset5])
+			current->dimensions[offset2] = current->next[offset5]->dimensions[offset2];
 		else
-			current->dimensions[X] = x;
-		rem = (current->dimensions[WIDTH] * (lim_window->dimensions[WIDTH] + local_width)) % local_width; 
+			current->dimensions[offset2] = x;
+		rem = (current->dimensions[offset2 + 2] * (lim_window->dimensions[offset2 + 2] + local_width)) % local_width; 
 		remsum += rem;
 		oldremsum = remsum;
-		if(!current->next[EAST] && lim_window->next[EAST] && lim_window->next[EAST]->dimensions[X] + local_width > current->dimensions[X] + current->dimensions[WIDTH])
-			remsum -= ((local_width - widthsum) * (lim_window->dimensions[WIDTH] + local_width)) % local_width + 1; 
-		oldwidth = current->dimensions[WIDTH];
-		current->dimensions[WIDTH] = (current->dimensions[WIDTH] * (lim_window->dimensions[WIDTH] + local_width)) / local_width;
+		if(!current->next[offset6] && lim_window->next[offset6] && lim_window->next[offset6]->dimensions[offset2] + local_width > current->dimensions[offset2] + current->dimensions[offset2 + 2])
+			remsum -= ((local_width - widthsum) * (lim_window->dimensions[offset2 + 2] + local_width)) % local_width + 1; 
+		oldwidth = current->dimensions[offset2 + 2];
+		current->dimensions[offset2 + 2] = (current->dimensions[offset2 + 2] * (lim_window->dimensions[offset2 + 2] + local_width)) / local_width;
 		wincount--;
-		xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_X, &current->dimensions[X]);
-		xcb_configure_window(connection, current->window, XCB_CONFIG_WINDOW_WIDTH, &current->dimensions[WIDTH]);
+		xcb_configure_window(connection, current->window, mask1, current->dimensions + offset2);
+		xcb_configure_window(connection, current->window, mask2, current->dimensions + offset2 + 2);
 		if(current->next[EAST]) {
 			wincount++;
 			if(wincount == stack_size) {
@@ -137,7 +139,7 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 			stack[wincount - 1].win = current->next[SOUTH];
 			stack[wincount - 1].widthsum = widthsum - oldwidth;
 		}
-		if(!current->next[EAST])
+		if(!current->next[offset6])
 			printf("rem sum pls %d %u %u %u %u\n", current->window, remsum, local_width, remsum / local_width, remsum % local_width);
 	}
 	free(stack);
