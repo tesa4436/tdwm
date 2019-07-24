@@ -1,13 +1,12 @@
 #include <xcb/xcb.h>
+
+enum { EAST, SOUTH, NORTH, WEST };
+enum { X, Y, WIDTH, HEIGHT};
+
 typedef struct win {
 	xcb_window_t window;
-	uint32_t x, y, width, height;
-	uint32_t prev_x, prev_y, prev_width, prev_height;
-	uint8_t flags;
-	struct win *east_next;
-	struct win *south_next;
-	struct win *north_prev;
-	struct win *west_prev;
+	uint32_t dimensions[4];
+	struct win *next[4];
 } Window;
 
 struct stack_node {

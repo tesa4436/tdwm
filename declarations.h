@@ -63,7 +63,7 @@ static const struct {
 };
 
 static xcb_atom_t wmatom[WMLast], netatom[NetLast];
-static uint32_t values[3];
+static uint32_t values[6];
 static xcb_connection_t *connection;
 static xcb_screen_t *screen;
 static xcb_drawable_t win;
