@@ -13,6 +13,8 @@ enum {
 #define SETUP_NUM_ATOMS (WMLast + NetLast)
 #define STACK_SIZE 16
 
+enum { VERTICAL, HORIZONTAL }; //magic numbers for resize function modes
+
 void map_request(xcb_generic_event_t *ev);
 void unmap_notify(xcb_generic_event_t *ev);
 void key_press(xcb_generic_event_t *ev);
