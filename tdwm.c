@@ -85,7 +85,8 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 		return;
 	size_t stack_size = STACK_SIZE;
 	size_t wincount = 1;
-	uint32_t remsum, rem, oldwidth, widthsum, oldremsum;
+	uint32_t rem, oldwidth, widthsum, oldremsum;
+	int64_t remsum;
 	unsigned char offset2, offset3, offset4, offset5, offset6;
 	uint16_t mask1, mask2;
 	if(flag == HORIZONTAL) {
@@ -113,10 +114,20 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 		else
 			current->dimensions[offset2] = x;
 		rem = (current->dimensions[offset2 + 2] * (lim_window->dimensions[offset2 + 2] + local_width)) % local_width; 
+		printf("rem %u %ld %ld %u %d\n", rem, remsum, remsum + rem, widthsum, current->window);
 		remsum += rem;
 		oldremsum = remsum;
-		if(!current->next[offset6] && lim_window->next[offset6] && lim_window->next[offset6]->dimensions[offset2] + local_width > current->dimensions[offset2] + current->dimensions[offset2 + 2])
-			remsum -= ((local_width - widthsum) * (lim_window->dimensions[offset2 + 2] + local_width)) % local_width + 1; 
+		if(!current->next[offset6] && lim_window->next[offset6] && lim_window->next[offset6]->dimensions[offset2] + local_width > current->dimensions[offset2] + current->dimensions[offset2 + 2]) {
+			uint32_t operand = ((local_width - widthsum) * (lim_window->dimensions[offset2 + 2] + local_width)) % local_width + 1;
+			uint32_t operand2 = (lim_window->dimensions[offset2 + 2] * (lim_window->dimensions[offset2 + 2] + local_width)) % local_width;
+			printf("min %d %ld %u %u ", current->window, remsum, operand, widthsum);
+			if(remsum >= operand) {
+				if(!((remsum - operand) % local_width))
+					remsum -= operand; 
+				else	remsum -= operand2;
+			} else	remsum -= operand2;
+			printf("%ld\n", remsum);
+		}
 		oldwidth = current->dimensions[offset2 + 2];
 		current->dimensions[offset2 + 2] = (current->dimensions[offset2 + 2] * (lim_window->dimensions[offset2 + 2] + local_width)) / local_width;
 		wincount--;
@@ -159,7 +170,8 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 			stack[wincount - 1].win = current->next[SOUTH];
 		}
 		if(!current->next[offset6])
-			printf("rem sum pls %d %u %u %u %u\n", current->window, remsum, local_width, remsum / local_width, remsum % local_width);
+			printf("rem sum pls %d %ld %u %ld %ld\n", current->window, remsum, local_width, remsum / local_width, remsum % local_width);
+		printf("wincount %lu\n", wincount);
 	}
 	free(stack);
 }
@@ -237,8 +249,8 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 		Current->next[offset1]->dimensions[offset3] += Current->dimensions[offset3];
 		Current->next[offset1]->dimensions[offset4] = Current->dimensions[offset4];
 		xcb_configure_window(connection, Current->window, mask2, Current->dimensions + offset3);
-		xcb_configure_window(connection, Current->next[offset1]->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y , Current->next[offset1]->dimensions);
-		xcb_configure_window(connection, Current->next[offset1]->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT , Current->next[offset1]->dimensions + 2);
+		xcb_configure_window(connection, Current->next[offset1]->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
+										XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT , Current->next[offset1]->dimensions);
 	}
 }
 
