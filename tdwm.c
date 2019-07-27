@@ -12,66 +12,41 @@
 #define EAST_MODE 1
 #define BORDER_WIDTH 0
 
-uint32_t calc_width_east(Window *current, Window *lim_window)
+uint32_t calc_length(Window *current, Window *lim_window, unsigned char flag)
 {
 	if (!current)
 		return 0;
 	uint32_t sum = 0;
-	sum+=current->dimensions[WIDTH] + BORDER_WIDTH*2;
-	while (current->next[EAST]) {
-		current = current->next[EAST];
-		if (lim_window)
-			if (current->dimensions[HEIGHT] > lim_window->dimensions[HEIGHT])
-				break;
-		sum+=current->dimensions[WIDTH] + BORDER_WIDTH*2;
+	uint32_t sum2 = 0;
+	unsigned char off1, off2, off3, off4;
+	switch (flag) {
+		case EAST: {
+			off1 = WIDTH, off2 = EAST, off3 = HEIGHT, off4 = SOUTH;
+		} break;
+		case SOUTH: {
+			off1 = HEIGHT, off2 = SOUTH, off3 = WIDTH, off4 = EAST;
+		} break;
+		case WEST: {
+			off1 = WIDTH, off2 = WEST, off3 = HEIGHT, off4 = SOUTH;
+		} break;
+		case NORTH: {
+			off1 = HEIGHT, off2 = NORTH, off3 = WIDTH, off4 = EAST;
+		} break;
 	}
-	return sum;
-}
-
-uint32_t calc_height_south(Window *current, Window *lim_window)
-{
-	if (!current)
-		return 0;
-	uint32_t sum = 0;
-	sum+=current->dimensions[HEIGHT] + BORDER_WIDTH*2;
-	while (current->next[SOUTH]) {
-		current = current->next[SOUTH];
-		if (lim_window)
-			if (current->dimensions[WIDTH] > lim_window->dimensions[WIDTH])
+	Window *current2;
+	sum+=current->dimensions[off1] + BORDER_WIDTH*2;
+	while (current->next[off2]) {
+		current = current->next[off2];
+		current2 = current;
+		if (lim_window) {
+			if (current->dimensions[off3] > lim_window->dimensions[off3])
 				break;
-		sum+=current->dimensions[HEIGHT] + BORDER_WIDTH*2;
-	}
-	return sum;
-}
-
-uint32_t calc_width_west(Window *current, Window *lim_window)
-{
-	if (!current)
-		return 0;
-	uint32_t sum = 0;
-	sum+=current->dimensions[WIDTH] + BORDER_WIDTH*2;
-	while (current->next[WEST]) {
-		current = current->next[WEST];
-		if (lim_window)
-			if (current->dimensions[HEIGHT] > lim_window->dimensions[HEIGHT])
-				break;
-		sum+=current->dimensions[WIDTH] + BORDER_WIDTH*2;
-	}
-	return sum;
-}
-
-uint32_t calc_height_north(Window *current, Window *lim_window)
-{
-	if (!current)
-		return 0;
-	uint32_t sum = 0;
-	sum+=current->dimensions[HEIGHT] + BORDER_WIDTH*2;
-	while (current->next[NORTH]) {
-		current = current->next[NORTH];
-		if (lim_window)
-			if (current->dimensions[WIDTH] > lim_window->dimensions[WIDTH])
-				break;
-		sum+=current->dimensions[HEIGHT] + BORDER_WIDTH*2;
+			while ((current2 = current2->next[off4])) {
+				if(current2->dimensions[off3 - 2] >= lim_window->dimensions[off3 - 2] + lim_window->dimensions[off3])
+					return sum;
+			}
+		}
+		sum+=current->dimensions[off1] + BORDER_WIDTH*2;
 	}
 	return sum;
 }
@@ -101,36 +76,34 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 	stack[0].widthsum = 0;
 	while (wincount) {
 		current = stack[wincount - 1].win;
+		if ((lim_window ? (((lim_window->dimensions[offset3 - 2] + lim_window->dimensions[offset3] + BORDER_WIDTH*2) == current->dimensions[offset3 - 2]) ? 1 : 0 )
+			|| (current->dimensions[offset3] > lim_window->dimensions[offset3]) : 0))
+			break;
 		remsum = stack[wincount - 1].remsum;
 		widthsum = stack[wincount - 1].widthsum;
 		widthsum += current->dimensions[offset2 + 2];
-		if ((lim_window ? (((lim_window->dimensions[offset3 - 2] + lim_window->dimensions[offset3] + BORDER_WIDTH*2) == current->dimensions[offset3 -2]) ? 1 : 0 )
-			|| (current->dimensions[offset3] > lim_window->dimensions[offset3]) : 0))
-			break;
+		rem = (current->dimensions[offset2 + 2] * (lim_window->dimensions[offset2 + 2] + local_width)) % local_width; 
+		remsum += rem;
+		oldremsum = remsum;
+		oldwidth = current->dimensions[offset2 + 2];
+		current->dimensions[offset2 + 2] = (current->dimensions[offset2 + 2] * (lim_window->dimensions[offset2 + 2] + local_width)) / local_width;
+		wincount--;
+
 		if (current->next[offset4])
 			current->dimensions[offset2] = current->next[offset4]->dimensions[offset2] + current->next[offset4]->dimensions[offset2 + 2] + BORDER_WIDTH*2;
 		else if (current->next[offset5])
 			current->dimensions[offset2] = current->next[offset5]->dimensions[offset2];
 		else
 			current->dimensions[offset2] = x;
-		rem = (current->dimensions[offset2 + 2] * (lim_window->dimensions[offset2 + 2] + local_width)) % local_width; 
-		printf("rem %u %ld %ld %u %d\n", rem, remsum, remsum + rem, widthsum, current->window);
-		remsum += rem;
-		oldremsum = remsum;
 		if (!current->next[offset6] && lim_window->next[offset6] && lim_window->next[offset6]->dimensions[offset2] + local_width > current->dimensions[offset2] + current->dimensions[offset2 + 2]) {
 			uint32_t operand = ((local_width - widthsum) * (lim_window->dimensions[offset2 + 2] + local_width)) % local_width + 1;
 			uint32_t operand2 = (lim_window->dimensions[offset2 + 2] * (lim_window->dimensions[offset2 + 2] + local_width)) % local_width;
-			printf("min %d %ld %u %u ", current->window, remsum, operand, widthsum);
 			if (remsum >= operand) {
 				if (!((remsum - operand) % local_width))
 					remsum -= operand; 
 				else	remsum -= operand2;
 			} else	remsum -= operand2;
-			printf("%ld\n", remsum);
 		}
-		oldwidth = current->dimensions[offset2 + 2];
-		current->dimensions[offset2 + 2] = (current->dimensions[offset2 + 2] * (lim_window->dimensions[offset2 + 2] + local_width)) / local_width;
-		wincount--;
 		if (!current->next[offset6])
 			current->dimensions[offset2 + 2] += remsum / local_width;
 		xcb_configure_window(connection, current->window, mask1, current->dimensions + offset2);
@@ -205,20 +178,20 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 			offset3 = HEIGHT;
 			offset4 = WIDTH;
 			mask2 = XCB_CONFIG_WINDOW_HEIGHT;
-			arr[0] = NULL;
-			arr[1] = Temp.next[offset1];
-			arr[2] = Prev;
-			arr[3] = NULL;
+			arr[EAST] = NULL;
+			arr[SOUTH] = Temp.next[offset1];
+			arr[NORTH] = Prev;
+			arr[WEST] = NULL;
 		} else {
 			offset1= EAST;
 			offset2 = WEST;
 			offset3 = WIDTH;
 			offset4 = HEIGHT;
 			mask2 = XCB_CONFIG_WINDOW_WIDTH;
-			arr[0] = Temp.next[offset1];
-			arr[1] = NULL;
-			arr[2] = NULL;
-			arr[3] = Prev;
+			arr[EAST] = Temp.next[offset1];
+			arr[SOUTH] = NULL;
+			arr[NORTH] = NULL;
+			arr[WEST] = Prev;
 		}
 		Current->next[offset1] = malloc(sizeof(Window));
 		if (!Current->next[offset1]) {
@@ -326,8 +299,9 @@ void unmap_notify(xcb_generic_event_t *ev)
 		uint32_t local_width, local_height;
 		Window *Temp1, *Temp2;
 		if (Current->next[EAST] && Current->next[SOUTH]) {
-			direction_east = (Current->dimensions[HEIGHT] + BORDER_WIDTH*2) < calc_height_south(Current->next[EAST], NULL) ? 0 : 1;
+			direction_east = (Current->dimensions[HEIGHT] + BORDER_WIDTH*2) < calc_length(Current->next[EAST], NULL, SOUTH) ? 0 : 1;
 			if (direction_east) {
+				printf("east?\n");
 				Current2 = Current->next[EAST];
 				while (Current2->next[SOUTH])
 					Current2 = Current2->next[SOUTH];	
@@ -344,9 +318,10 @@ void unmap_notify(xcb_generic_event_t *ev)
 					Current->next[WEST]->next[EAST] = Current->next[EAST];
 				} else
 					Current->next[EAST]->next[WEST] = NULL;
-				change_x_and_width(Current->next[EAST], Current->dimensions[X], Current, calc_width_east(Current->next[EAST], Current), HORIZONTAL);
+				change_x_and_width(Current->next[EAST], Current->dimensions[X], Current, calc_length(Current->next[EAST], Current, EAST), HORIZONTAL);
 				xcb_flush(connection);
 			} else {
+				printf("south?\n");
 				Current2 = Current->next[SOUTH];
 				while (Current2->next[EAST])
 					Current2 = Current2->next[EAST];	
@@ -362,7 +337,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 					Current->next[NORTH]->next[SOUTH] = Current->next[SOUTH];
 				} else
 					Current->next[SOUTH]->next[NORTH] = NULL;
-				change_x_and_width(Current->next[SOUTH], Current->dimensions[Y], Current, calc_height_south(Current->next[SOUTH], Current), VERTICAL);
+				change_x_and_width(Current->next[SOUTH], Current->dimensions[Y], Current, calc_length(Current->next[SOUTH], Current, SOUTH), VERTICAL);
 				xcb_flush(connection);
 			}
 			
@@ -377,8 +352,8 @@ void unmap_notify(xcb_generic_event_t *ev)
 			Temp2 = Current->next[SOUTH];
 			Current->next[EAST] = NULL;
 			Current->next[SOUTH] = NULL;
-			local_height = calc_height_north(Current->next[NORTH], Current);
-			local_width = calc_width_west(Current->next[WEST], Current);
+			local_height = calc_length(Current->next[NORTH], Current, NORTH);
+			local_width = calc_length(Current->next[WEST], Current, WEST);
 			printf("locals: %d %d\n", local_width, local_height);
 			Current->next[EAST] = Temp1;
 			Current->next[SOUTH] = Temp2;
@@ -395,8 +370,8 @@ void unmap_notify(xcb_generic_event_t *ev)
 				Current->next[SOUTH]->next[WEST] = NULL;
 				Current->next[SOUTH]->next[NORTH] = Current->next[NORTH];
 			}
-			if ((Current->dimensions[WIDTH] + BORDER_WIDTH*2) >= calc_width_east(Current->next[SOUTH], NULL))
-				change_x_and_width(Current->next[SOUTH], Current->dimensions[Y], Current, calc_height_south(Current->next[SOUTH], Current), VERTICAL);
+			if ((Current->dimensions[WIDTH] + BORDER_WIDTH*2) >= calc_length(Current->next[SOUTH], NULL, EAST))
+				change_x_and_width(Current->next[SOUTH], Current->dimensions[Y], Current, calc_length(Current->next[SOUTH], Current, SOUTH), VERTICAL);
 			else if (Current->next[NORTH]) {
 				Window *Temp = Current->next[NORTH]->next[SOUTH];
 				Current->next[NORTH]->next[SOUTH] = NULL;
@@ -421,8 +396,8 @@ void unmap_notify(xcb_generic_event_t *ev)
 			Temp2 = Current->next[SOUTH];
 			Current->next[EAST] = NULL;
 			Current->next[SOUTH] = NULL;
-			local_height = calc_height_north(Current->next[NORTH], Current);
-			local_width = calc_width_west(Current->next[WEST], Current);
+			local_height = calc_length(Current->next[NORTH], Current, NORTH);
+			local_width = calc_length(Current->next[WEST], Current, WEST);
 			Current->next[EAST] = Temp1;
 			Current->next[SOUTH] = Temp2;
 			if (Current == Root) {
@@ -438,8 +413,8 @@ void unmap_notify(xcb_generic_event_t *ev)
 				Current->next[EAST]->next[NORTH] = NULL;
 				Current->next[EAST]->next[WEST] = Current->next[WEST];
 			}
-			if ((Current->dimensions[HEIGHT] + BORDER_WIDTH*2) >= calc_height_south(Current->next[EAST], NULL))
-				change_x_and_width(Current->next[EAST], Current->dimensions[X], Current, calc_width_east(Current->next[EAST], Current), HORIZONTAL);
+			if ((Current->dimensions[HEIGHT] + BORDER_WIDTH*2) >= calc_length(Current->next[EAST], NULL, SOUTH))
+				change_x_and_width(Current->next[EAST], Current->dimensions[X], Current, calc_length(Current->next[EAST], Current, EAST), HORIZONTAL);
 			else if (Current->next[NORTH]) {
 				Window *Temp = Current->next[NORTH]->next[SOUTH];
 				Current->next[NORTH]->next[SOUTH] = NULL;
@@ -465,14 +440,14 @@ void unmap_notify(xcb_generic_event_t *ev)
 				while (Current2->next[NORTH] && Current2->next[NORTH]->dimensions[WIDTH] <= Current->dimensions[WIDTH]) {
 					Current2 = Current2->next[NORTH];
 				}
-				change_x_and_width(Current2, Current2->dimensions[Y], Current, calc_height_north(Current->next[NORTH], Current), VERTICAL);
+				change_x_and_width(Current2, Current2->dimensions[Y], Current, calc_length(Current->next[NORTH], Current, NORTH), VERTICAL);
 			}
 			if (Current->next[WEST]) {
 				Current->next[WEST]->next[EAST] = NULL;
 				while (Current2->next[WEST] && Current2->next[WEST]->dimensions[HEIGHT] <= Current->dimensions[HEIGHT]) {
 					Current2 = Current2->next[WEST];
 				}
-				change_x_and_width(Current2, Current2->dimensions[X], Current, calc_width_west(Current->next[WEST], Current), HORIZONTAL);
+				change_x_and_width(Current2, Current2->dimensions[X], Current, calc_length(Current->next[WEST], Current, WEST), HORIZONTAL);
 			}
 			xcb_flush(connection);
 		}
