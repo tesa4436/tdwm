@@ -76,9 +76,6 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 	stack[0].widthsum = 0;
 	while (wincount) {
 		current = stack[wincount - 1].win;
-		if ((lim_window ? (((lim_window->dimensions[offset3 - 2] + lim_window->dimensions[offset3] + BORDER_WIDTH*2) == current->dimensions[offset3 - 2]) ? 1 : 0 )
-			|| (current->dimensions[offset3] > lim_window->dimensions[offset3]) : 0))
-			break;
 		remsum = stack[wincount - 1].remsum;
 		widthsum = stack[wincount - 1].widthsum;
 		widthsum += current->dimensions[offset2 + 2];
@@ -104,11 +101,8 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 				else	remsum -= operand2;
 			} else	remsum -= operand2;
 		}
-		if (!current->next[offset6])
-			current->dimensions[offset2 + 2] += remsum / local_width;
-		xcb_configure_window(connection, current->window, mask1, current->dimensions + offset2);
-		xcb_configure_window(connection, current->window, mask2, current->dimensions + offset2 + 2);
-		if (current->next[EAST]) {
+		if (current->next[EAST] && !((lim_window ? (((lim_window->dimensions[offset3 - 2] + lim_window->dimensions[offset3] + BORDER_WIDTH*2) == current->next[EAST]->dimensions[offset3 - 2]) ? 1 : 0 )
+			|| (current->next[EAST]->dimensions[offset3] > lim_window->dimensions[offset3]) : 0))) {
 			wincount++;
 			if (flag == HORIZONTAL) {
 				stack[wincount - 1].remsum = remsum;
@@ -118,8 +112,10 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 				stack[wincount - 1].widthsum = widthsum - oldwidth;
 			}
 			stack[wincount - 1].win = current->next[EAST];
-		}
-		if (current->next[SOUTH]) {
+		} else if (flag == HORIZONTAL)
+			current->dimensions[offset2 + 2] += remsum / local_width;
+		if (current->next[SOUTH] && !((lim_window ? (((lim_window->dimensions[offset3 - 2] + lim_window->dimensions[offset3] + BORDER_WIDTH*2) == current->next[SOUTH]->dimensions[offset3 - 2]) ? 1 : 0 )
+			|| (current->next[SOUTH]->dimensions[offset3] > lim_window->dimensions[offset3]) : 0))) {
 			wincount++;
 			if (flag == HORIZONTAL) {
 				stack[wincount - 1].remsum = oldremsum - rem;
@@ -129,10 +125,12 @@ void change_x_and_width(Window *current, uint32_t x, Window *lim_window, uint32_
 				stack[wincount - 1].widthsum = widthsum;
 			}
 			stack[wincount - 1].win = current->next[SOUTH];
-		}
+		} else if (flag == VERTICAL)
+			current->dimensions[offset2 + 2] += remsum / local_width;
 		if (!current->next[offset6])
 			printf("rem sum pls %d %ld %u %ld %ld\n", current->window, remsum, local_width, remsum / local_width, remsum % local_width);
-		printf("wincount %lu\n", wincount);
+		xcb_configure_window(connection, current->window, mask1, current->dimensions + offset2);
+		xcb_configure_window(connection, current->window, mask2, current->dimensions + offset2 + 2);
 	}
 	free(stack);
 }
@@ -301,7 +299,6 @@ void unmap_notify(xcb_generic_event_t *ev)
 		if (Current->next[EAST] && Current->next[SOUTH]) {
 			direction_east = (Current->dimensions[HEIGHT] + BORDER_WIDTH*2) < calc_length(Current->next[EAST], NULL, SOUTH) ? 0 : 1;
 			if (direction_east) {
-				printf("east?\n");
 				Current2 = Current->next[EAST];
 				while (Current2->next[SOUTH])
 					Current2 = Current2->next[SOUTH];	
@@ -321,7 +318,6 @@ void unmap_notify(xcb_generic_event_t *ev)
 				change_x_and_width(Current->next[EAST], Current->dimensions[X], Current, calc_length(Current->next[EAST], Current, EAST), HORIZONTAL);
 				xcb_flush(connection);
 			} else {
-				printf("south?\n");
 				Current2 = Current->next[SOUTH];
 				while (Current2->next[EAST])
 					Current2 = Current2->next[EAST];	
