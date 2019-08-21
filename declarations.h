@@ -72,8 +72,6 @@ static xcb_drawable_t win;
 static xcb_drawable_t root;
 static xcb_generic_event_t *ev;
 static xcb_get_geometry_reply_t *geom;
-static xcb_get_window_attributes_reply_t* attr;
-static xcb_query_tree_reply_t *query_tree;
 static uint32_t infocus_color, outfocus_color;
 static char split_mode = 'h';
 static xcb_window_t focused_window;
