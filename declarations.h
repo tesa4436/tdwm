@@ -64,6 +64,14 @@ static const struct {
 	{ "WM_TAKE_FOCUS",		WMTakeFocus, 0 } 
 };
 
+typedef struct { // keycode to list of keysyms mapping
+	xcb_keysym_t *keysyms;
+	uint32_t no_of_keycodes;
+	uint32_t no_of_keysyms;
+} key_mapping;
+
+static struct key_mapping *kmapping;
+static const xcb_setup_t *xorg_setup;
 static xcb_atom_t wmatom[WMLast], netatom[NetLast];
 static uint32_t values[6];
 static xcb_connection_t *connection;
