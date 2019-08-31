@@ -64,10 +64,11 @@ static const struct {
 	{ "WM_TAKE_FOCUS",		WMTakeFocus, 0 } 
 };
 
-typedef struct { // keycode to list of keysyms mapping
+typedef struct key_mapping { // keycode to list of keysyms mapping
 	xcb_keysym_t *keysyms;
 	uint32_t no_of_keycodes;
 	uint32_t no_of_keysyms;
+	uint32_t keysyms_per_keycode;
 } key_mapping;
 
 static struct key_mapping *kmapping;

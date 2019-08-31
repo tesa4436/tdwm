@@ -38,45 +38,84 @@ uint32_t calc_length(Window *current, Window *lim_window, unsigned char flag)
 		if (lim_window) {
 			if (current->dimensions[off3] > lim_window->dimensions[off3])
 				break;
-			/*
-			while ((current2 = current2->next[off4])) {
-				if(current2->dimensions[off3 - 2] >= lim_window->dimensions[off3 - 2] + lim_window->dimensions[off3])
-					return sum;
+			current2 = current->next[off4];
+			if ((flag == NORTH || flag == WEST) && current2 && current2->dimensions[off3 - 2] >= lim_window->dimensions[off3 - 2] + lim_window->dimensions[off3]) {
+				sum += current->dimensions[off1] + BORDER_WIDTH*2;
+				continue;
 			}
-			*/
+			while (current2 && current2->dimensions[off3 - 2] + current2->dimensions[off3] <= lim_window->dimensions[off3 - 2] + lim_window->dimensions[off3])
+				current2 = current2->next[off4]; // this loop checks whether this window group is bigger than the limit window
+			if (current2)
+				break;
 		}
 		sum += current->dimensions[off1] + BORDER_WIDTH*2;
 	}
 	return sum;
 }
 
-void change_x_and_width(Window *current, uint32_t x, int32_t width, Window *lim_window, uint32_t local_width, unsigned char flag)
+void change_dimensions(Window *current, uint32_t x, int32_t width, Window *lim_window, uint32_t local_width, unsigned char flag)
 {
-	if (!current)
+	if (!current || !lim_window)
 		return;
-	struct stack_node stack[3];
-	size_t wincount = 1;
-	uint32_t rem, oldwidth, widthsum, new_local_width;
-	int64_t remsum, oldremsum;
+	struct stack_node stack[3]; // a stack for iterative tree traversal
+	size_t wincount = 0;
+	uint32_t rem = 0, oldwidth = 0, widthsum = 0, new_local_width;
+	int64_t remsum = 0, oldremsum = 0;
 	unsigned char x_or_y, height_or_width, west_or_north, north_or_west, east_or_south;
-	uint16_t mask1, mask2;
+	uint16_t x_or_y_mask, width_or_height_mask;
+
 	if (flag == HORIZONTAL) {
 		x_or_y = X, height_or_width = HEIGHT, west_or_north = WEST, north_or_west = NORTH, east_or_south = EAST;
-		mask1 = XCB_CONFIG_WINDOW_X, mask2 = XCB_CONFIG_WINDOW_WIDTH;
+		x_or_y_mask = XCB_CONFIG_WINDOW_X, width_or_height_mask = XCB_CONFIG_WINDOW_WIDTH;
 	} else if (flag == VERTICAL) {
 		x_or_y = Y, height_or_width = WIDTH, west_or_north = NORTH, north_or_west = WEST, east_or_south = SOUTH;
-		mask1 = XCB_CONFIG_WINDOW_Y, mask2 = XCB_CONFIG_WINDOW_HEIGHT;
+		x_or_y_mask = XCB_CONFIG_WINDOW_Y, width_or_height_mask = XCB_CONFIG_WINDOW_HEIGHT;
 	} else return;
 
 	if (lim_window->dimensions[height_or_width - 2] + lim_window->dimensions[height_or_width] + (BORDER_WIDTH * 2) <= current->dimensions[height_or_width - 2])
 		return;
-	if (width > 0)
-		new_local_width = local_width - width; // means that the window group's width will increase
-	else
-		new_local_width = local_width + (width * -1); // same, but decreases
-	stack[0].win = current;
-	stack[0].remsum = 0;
-	stack[0].widthsum = 0;
+	if (current != lim_window) {
+		wincount++;
+		stack[0].win = current;
+		stack[0].remsum = 0;
+		stack[0].widthsum = 0;
+		new_local_width = local_width + (width * -1);
+	} else if ((width < 0 && (uint32_t) (width * -1) < current->dimensions[x_or_y + 2]) || (width >= 0 && (uint32_t) width < local_width)) {
+		if ((flag == HORIZONTAL && current->next[EAST]) || ((flag == VERTICAL && current->next[SOUTH]))) {
+			local_width += width;
+			new_local_width = local_width; // TODO rename these variables to something more informative
+			current->dimensions[x_or_y + 2] += width;
+			xcb_configure_window(connection, current->window, width_or_height_mask, current->dimensions + x_or_y + 2);
+		}
+		else return;
+
+		if (current->next[EAST]) {
+			if (flag == HORIZONTAL && current->next[EAST]->dimensions[X] < lim_window->dimensions[X] + local_width) {
+				wincount++;
+				stack[wincount - 1].remsum = remsum;
+				stack[wincount - 1].widthsum = widthsum;
+				stack[wincount - 1].win = current->next[EAST];
+			} else if (flag == VERTICAL && (lim_window->dimensions[X] + lim_window->dimensions[WIDTH] + (BORDER_WIDTH * 2) > current->next[EAST]->dimensions[X])) {
+				wincount++;
+				stack[wincount - 1].remsum = oldremsum - rem;
+				stack[wincount - 1].widthsum = widthsum - oldwidth;
+				stack[wincount - 1].win = current->next[EAST];
+			}
+		}
+		if (current->next[SOUTH]) {
+			if (flag == HORIZONTAL && (lim_window->dimensions[Y] + lim_window->dimensions[HEIGHT] + (BORDER_WIDTH * 2) > current->next[SOUTH]->dimensions[Y])) {
+				wincount++;
+				stack[wincount - 1].remsum = oldremsum - rem;
+				stack[wincount - 1].widthsum = widthsum - oldwidth;
+				stack[wincount - 1].win = current->next[SOUTH];
+			} else if (flag == VERTICAL && current->next[SOUTH]->dimensions[Y] < lim_window->dimensions[Y] + local_width) {
+				wincount++;
+				stack[wincount - 1].remsum = remsum;
+				stack[wincount - 1].widthsum = widthsum;
+				stack[wincount - 1].win = current->next[SOUTH];
+			}
+		}
+	}
 	while (wincount) {
 		current = stack[wincount - 1].win;
 		remsum = stack[wincount - 1].remsum;
@@ -106,7 +145,7 @@ void change_x_and_width(Window *current, uint32_t x, int32_t width, Window *lim_
 			} else	remsum -= operand2;
 		}
 		if (current->next[EAST]) {
-			if (flag == HORIZONTAL && current->next[EAST]->dimensions[X] < lim_window->dimensions[X] + local_width) {
+			if (flag == HORIZONTAL && (current->next[EAST]->dimensions[X] < lim_window->dimensions[X] + local_width)) {
 				wincount++;
 				stack[wincount - 1].remsum = remsum;
 				stack[wincount - 1].widthsum = widthsum;
@@ -135,8 +174,8 @@ void change_x_and_width(Window *current, uint32_t x, int32_t width, Window *lim_
 				current->dimensions[x_or_y + 2] += remsum / new_local_width;
 		} else if (flag == VERTICAL)
 			current->dimensions[x_or_y + 2] += remsum / new_local_width;
-		xcb_configure_window(connection, current->window, mask1, current->dimensions + x_or_y);
-		xcb_configure_window(connection, current->window, mask2, current->dimensions + x_or_y + 2);
+		xcb_configure_window(connection, current->window, x_or_y_mask, current->dimensions + x_or_y);
+		xcb_configure_window(connection, current->window, width_or_height_mask, current->dimensions + x_or_y + 2);
 	}
 }
 
@@ -327,7 +366,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 				Current->next[off4]->next[off1] = Current->next[off1];
 			} else
 				Current->next[off1]->next[off4] = NULL;
-			change_x_and_width(Current->next[off1], Current->dimensions[off6], Current->dimensions[off6 + 2], Current, local_width_or_height, off5);
+			change_dimensions(Current->next[off1], Current->dimensions[off6], Current->dimensions[off6 + 2], Current, local_width_or_height, off5);
 			xcb_flush(connection); // a rather awkward place for a resize function call, TODO restructure
 
 			if (Current == Root) {
@@ -356,6 +395,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 			else {
 				free(Current);
 				Current = NULL;
+				Root = NULL;
 				if (xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL)) {
 					xcb_icccm_wm_hints_set_withdrawn(&wm_hints);
 					xcb_icccm_set_wm_hints(connection, unmap_ev->window, &wm_hints);
@@ -363,11 +403,11 @@ void unmap_notify(xcb_generic_event_t *ev)
 				free(ev);
 				return;
 			}
-			local_width_or_height = calc_length(Current, Current, off1);
+			local_width_or_height = calc_length(Current, Current, off1); // TODO maybe move the length calculations to the resize function?
 			Current->next[off1]->next[off2] = NULL;
 			while (Current2->next[off1] && Current2->next[off1]->dimensions[off3] <= Current->dimensions[off3])
 				Current2 = Current2->next[off1];
-			change_x_and_width(Current2, Current2->dimensions[off5], Current->dimensions[off5 + 2], Current, local_width_or_height, off4);
+			change_dimensions(Current2, Current2->dimensions[off5], Current->dimensions[off5 + 2], Current, local_width_or_height, off4);
 			xcb_flush(connection);
 			free(Current);
 			Current = NULL;
@@ -404,14 +444,14 @@ void unmap_notify(xcb_generic_event_t *ev)
 			Current->next[off1]->next[off3] = Current->next[off3];
 		}
 		if ((Current->dimensions[off6] + BORDER_WIDTH*2) >= calc_length(Current->next[off1], NULL, off4))
-			change_x_and_width(Current->next[off1], Current->dimensions[off7], Current->dimensions[off7 + 2], Current, local_width_or_height, off5);
+			change_dimensions(Current->next[off1], Current->dimensions[off7], Current->dimensions[off7 + 2], Current, local_width_or_height, off5);
 		else if (Current->next[NORTH]) {
 			Window *Temp = Current->next[NORTH]->next[SOUTH];
 			Current->next[NORTH]->next[SOUTH] = NULL;
 			while (Current2->next[NORTH] && Current2->next[NORTH]->dimensions[WIDTH] <= Current->dimensions[WIDTH]) {
 				Current2 = Current2->next[NORTH];
 			}
-			change_x_and_width(Current2, Current2->dimensions[Y], Current->dimensions[HEIGHT], Current, local_height, VERTICAL);
+			change_dimensions(Current2, Current2->dimensions[Y], Current->dimensions[HEIGHT], Current, local_height, VERTICAL);
 			Current->next[NORTH]->next[SOUTH] = Temp;
 		} else if (Current->next[WEST]) {
 			Window *Temp = Current->next[WEST]->next[EAST];
@@ -419,7 +459,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 			while (Current2->next[WEST] && Current2->next[WEST]->dimensions[HEIGHT] <= Current->dimensions[HEIGHT]) {
 				Current2 = Current2->next[WEST];
 			}
-			change_x_and_width(Current2, Current2->dimensions[X], Current->dimensions[WIDTH], Current, local_width, HORIZONTAL);
+			change_dimensions(Current2, Current2->dimensions[X], Current->dimensions[WIDTH], Current, local_width, HORIZONTAL);
 			Current->next[WEST]->next[EAST] = Temp;
 		}
 		xcb_flush(connection);
@@ -434,7 +474,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 	free(ev);
 }
 
-struct key_mapping xcb_get_keyboard_mapping(xcb_connection_t *connection, const xcb_setup_t *setup)
+struct key_mapping* get_keyboard_mapping(xcb_connection_t *connection, const xcb_setup_t *setup)
 {
 	xcb_get_keyboard_mapping_reply_t *keyboard_mapping = xcb_get_keyboard_mapping_reply(	connection,
 												xcb_get_keyboard_mapping(connection,
@@ -443,7 +483,17 @@ struct key_mapping xcb_get_keyboard_mapping(xcb_connection_t *connection, const 
 												NULL);
 	int nkeycodes = keyboard_mapping->length / keyboard_mapping->keysyms_per_keycode;
 	int nkeysyms = keyboard_mapping->length;
-	xcb_keysym_t *keysyms = (xcb_keysym_t*) (keyboard_mapping + 1);  // `xcb_keycode_t` is just a `typedef u8`, and `xcb_keysym_t` is just a `typedef u32`
+	xcb_keysym_t *keysyms = (xcb_keysym_t*) (keyboard_mapping + 1);
+	struct key_mapping *ret = malloc(sizeof(struct key_mapping)); // it  isn't necessary to free this, since it is required throughout the running time
+	if (!ret) {
+		free(keyboard_mapping);
+		fprintf(stderr, "error, could not allocate %lu bytes\n", sizeof(struct key_mapping));
+		exit(1);
+	}
+	ret->keysyms = keysyms;
+	ret->no_of_keycodes = nkeycodes;
+	ret->no_of_keysyms = nkeysyms;
+	ret->keysyms_per_keycode = keyboard_mapping->keysyms_per_keycode;
 	printf("nkeycodes %u  nkeysyms %u  keysyms_per_keycode %u\n\n", nkeycodes, nkeysyms, keyboard_mapping->keysyms_per_keycode);
 	for(int keycode_idx = 0; keycode_idx < nkeycodes; keycode_idx++) {
 		printf("keycode %3u ", setup->min_keycode + keycode_idx);
@@ -452,16 +502,16 @@ struct key_mapping xcb_get_keyboard_mapping(xcb_connection_t *connection, const 
 			}
 		putchar('\n');
 	}
-	free(keyboard_mapping);
+	return ret;
 }
 
 void key_press(xcb_generic_event_t *ev)
 {
 	xcb_key_press_event_t *key_event = (xcb_key_press_event_t *)ev;
-	//printf ("Key pressed in window\n");
 	if (key_event->child) {
 		win = key_event->child;
 		geom = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, win), NULL);
+		printf("%c pressed\n", kmapping->keysyms[key_event->detail * kmapping->keysyms_per_keycode]);
 		
 		switch(key_event->detail) {
 			case 111: { //up arrow key keycode
@@ -594,7 +644,7 @@ void setup(void)
 		exit(1);
 	}
 	xorg_setup = xcb_get_setup(connection);
-	kmapping = xcb_get_keyboard_mapping(connection, xorg_setup);
+	kmapping = get_keyboard_mapping(connection, xorg_setup);
 	screen = xcb_setup_roots_iterator(xorg_setup).data;
 	root = screen->root;
 	focused_window = root;
