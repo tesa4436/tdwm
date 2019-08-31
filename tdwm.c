@@ -38,15 +38,13 @@ uint32_t calc_length(Window *current, Window *lim_window, unsigned char flag)
 		if (lim_window) {
 			if (current->dimensions[off3] > lim_window->dimensions[off3])
 				break;
-			current2 = current->next[off4];
-			if ((flag == NORTH || flag == WEST) && current2 && current2->dimensions[off3 - 2] >= lim_window->dimensions[off3 - 2] + lim_window->dimensions[off3]) {
-				sum += current->dimensions[off1] + BORDER_WIDTH*2;
-				continue;
+			if (flag == EAST || flag == SOUTH) {
+				current2 = current->next[off4];
+				while (current2 && current2->dimensions[off3 - 2] + current2->dimensions[off3] <= lim_window->dimensions[off3 - 2] + lim_window->dimensions[off3])
+					current2 = current2->next[off4]; // this loop checks whether this window group is bigger than the limit window
+				if (current2)
+					break;
 			}
-			while (current2 && current2->dimensions[off3 - 2] + current2->dimensions[off3] <= lim_window->dimensions[off3 - 2] + lim_window->dimensions[off3])
-				current2 = current2->next[off4]; // this loop checks whether this window group is bigger than the limit window
-			if (current2)
-				break;
 		}
 		sum += current->dimensions[off1] + BORDER_WIDTH*2;
 	}
