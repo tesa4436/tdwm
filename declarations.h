@@ -26,7 +26,7 @@ uint32_t calc_height_south(Window *current, Window *lim_window);
 uint32_t calc_height_north(Window *current, Window *lim_window);
 void focus_in(xcb_generic_event_t *ev);
 void focus_out(xcb_generic_event_t *ev);
-Window* bfs_search(Window *current, xcb_window_t key);
+Window* bfs_search(Window *current, const xcb_window_t key);
 void insert_window_after(Window *root, xcb_window_t after_which, xcb_window_t new_window);
 
 static void (*handler[XCB_GE_GENERIC]) (xcb_generic_event_t *) = {

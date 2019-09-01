@@ -10,7 +10,7 @@
 #include "declarations.h"
 #define BORDER_WIDTH 0
 
-uint32_t calc_length(Window *current, Window *lim_window, unsigned char flag)
+uint32_t calc_length(Window *current, const Window *lim_window, const unsigned char flag)
 {
 	if (!current)
 		return 0;
@@ -34,7 +34,6 @@ uint32_t calc_length(Window *current, Window *lim_window, unsigned char flag)
 	Window *current2;
 	sum += current->dimensions[off1] + BORDER_WIDTH*2;
 	while ((current = current->next[off2])) {
-		current2 = current;
 		if (lim_window) {
 			if (current->dimensions[off3] > lim_window->dimensions[off3])
 				break;
@@ -51,7 +50,7 @@ uint32_t calc_length(Window *current, Window *lim_window, unsigned char flag)
 	return sum;
 }
 
-void change_dimensions(Window *current, uint32_t x, int32_t width, Window *lim_window, uint32_t local_width, unsigned char flag)
+void change_dimensions(Window *current, const uint32_t x, const int32_t width, const Window *lim_window, uint32_t local_width, const unsigned char flag)
 {
 	if (!current || !lim_window)
 		return;
@@ -134,8 +133,8 @@ void change_dimensions(Window *current, uint32_t x, int32_t width, Window *lim_w
 			current->dimensions[x_or_y] = x;
 		if (!current->next[east_or_south] && lim_window->next[east_or_south] &&
 			lim_window->next[east_or_south]->dimensions[x_or_y] + new_local_width > current->dimensions[x_or_y] + current->dimensions[x_or_y + 2]) {
-			uint32_t operand = ((new_local_width - widthsum) * local_width) % new_local_width + 1;
-			uint32_t operand2 = (lim_window->dimensions[x_or_y + 2] * local_width) % new_local_width;
+			const uint32_t operand = ((new_local_width - widthsum) * local_width) % new_local_width + 1;
+			const uint32_t operand2 = (lim_window->dimensions[x_or_y + 2] * local_width) % new_local_width;
 			if (remsum >= operand) {
 				if (!((remsum - operand) % new_local_width))
 					remsum -= operand; 
@@ -178,7 +177,7 @@ void change_dimensions(Window *current, uint32_t x, int32_t width, Window *lim_w
 }
 
 
-void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window_t new_window) // this function uses a bunch of global variables, TODO make local
+void insert_window_after(Window *tree_root, const xcb_window_t after_which, const xcb_window_t new_window) // this function uses a bunch of global variables, TODO make local
 {
 	Window Temp;
 	unsigned char south_or_east, north_or_west, height_or_width, width_or_height;
@@ -257,7 +256,7 @@ void insert_window_after(Window *tree_root, xcb_window_t after_which, xcb_window
 	}
 }
 
-Window* bfs_search(Window *current, xcb_window_t key)
+Window* bfs_search(Window *current, const xcb_window_t key)
 {
 	if (!current)
 		return NULL;
