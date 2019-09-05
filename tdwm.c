@@ -170,6 +170,7 @@ void change_dimensions(Window *current, const uint32_t x, const int32_t width, W
 				stack[wincount - 1].local_width = local_width;
 				stack[wincount - 1].new_local_width = new_local_width;
 				stack[wincount - 1].win = current->next[EAST];
+				stack[wincount - 1].skip = skip;
 			} else if (flag == VERTICAL && (skip || (lim_window->dimensions[X] + lim_window->dimensions[WIDTH] + (BORDER_WIDTH * 2) > current->next[EAST]->dimensions[X]))) {
 				wincount++;
 				stack[wincount - 1].remsum = oldremsum - rem;
@@ -177,6 +178,7 @@ void change_dimensions(Window *current, const uint32_t x, const int32_t width, W
 				stack[wincount - 1].win = current->next[EAST];
 				stack[wincount - 1].local_width = local_width;
 				stack[wincount - 1].new_local_width = new_local_width;
+				stack[wincount - 1].skip = skip;
 			} else if (flag == HORIZONTAL)
 				current->dimensions[x_or_y + 2] += remsum / new_local_width;
 		} else if (flag == HORIZONTAL)
@@ -189,6 +191,7 @@ void change_dimensions(Window *current, const uint32_t x, const int32_t width, W
 				stack[wincount - 1].local_width = local_width;
 				stack[wincount - 1].new_local_width = new_local_width;
 				stack[wincount - 1].win = current->next[SOUTH];
+				stack[wincount - 1].skip = skip;
 			} else if (flag == VERTICAL && (skip || current->next[SOUTH]->dimensions[Y] < lim_window->dimensions[Y] + local_width)) {
 				wincount++;
 				stack[wincount - 1].remsum = remsum;
@@ -196,6 +199,7 @@ void change_dimensions(Window *current, const uint32_t x, const int32_t width, W
 				stack[wincount - 1].local_width = local_width;
 				stack[wincount - 1].new_local_width = new_local_width;
 				stack[wincount - 1].win = current->next[SOUTH];
+				stack[wincount - 1].skip = skip;
 			} else if (flag == VERTICAL)
 				current->dimensions[x_or_y + 2] += remsum / new_local_width;
 		} else if (flag == VERTICAL)
