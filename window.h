@@ -13,4 +13,7 @@ struct stack_node {
 	Window *win;
 	uint32_t remsum;
 	uint32_t widthsum;
+	uint32_t local_width;
+	uint32_t new_local_width;
+	uint8_t skip;
 };
