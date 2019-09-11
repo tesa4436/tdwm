@@ -10,6 +10,62 @@
 #include "declarations.h"
 #define BORDER_WIDTH 0
 
+Window *find_neighboring_group(Window *current, const unsigned char flag)
+{
+	Window *current2 = current;
+	uint32_t other_grp_dim;
+	uint8_t east_or_south, west_or_north, north_or_west, x_or_y;
+
+	if (!current)
+		return NULL;
+
+	switch (flag) {
+		case HORIZONTAL: {
+			east_or_south = EAST;
+			west_or_north = WEST;
+			north_or_west = NORTH;
+			x_or_y = X;
+		} break;
+
+		case VERTICAL: {
+			east_or_south = SOUTH;
+			west_or_north = NORTH;
+			north_or_west = WEST;
+			x_or_y = Y;
+		} break;
+
+		default: return NULL;
+	}
+
+	if (current->next[east_or_south] && (current2 = current->next[east_or_south]))
+		while (current2->next[east_or_south])
+			current2 = current2->next[east_or_south];
+
+	other_grp_dim = current2->dimensions[x_or_y] + current2->dimensions[x_or_y + 2] + BORDER_WIDTH*2;
+
+	printf("current2 %u %u\n", current2->window, other_grp_dim);
+
+	while (current->next[west_or_north])
+		current = current->next[west_or_north];
+
+	for (current = current->next[north_or_west]; current; current = current->next[north_or_west]) {
+		current2 = current->next[east_or_south];
+
+		while (current2) {
+			printf("CURRRRRRRR %u %u %u\n", current2->window, current2->dimensions[x_or_y], other_grp_dim);
+			if (current2->dimensions[x_or_y] == other_grp_dim)
+				return current2;
+
+			current2 = current2->next[east_or_south];
+		}
+
+		while (current->next[west_or_north])
+			current = current->next[west_or_north];
+	}
+
+	return NULL;
+}
+
 uint32_t calc_length(Window *current, const Window *lim_window, const unsigned char flag)
 {
 	if (!current)
@@ -336,6 +392,7 @@ Window* bfs_search(Window *current, const xcb_window_t key)
 void print_node(Window *root, xcb_window_t win)
 {
 	Window *window = bfs_search(root, win);
+	Window *other_group = find_neighboring_group(window, HORIZONTAL);
 
 	if (window) {
 		if (window == Root)
@@ -351,6 +408,11 @@ void print_node(Window *root, xcb_window_t win)
 		if (window->next[WEST])
 			printf("west %d\n", window->next[WEST]->window);
 		printf("\n%u %u %u %u\n\n", window->dimensions[X], window->dimensions[Y], window->dimensions[WIDTH], window->dimensions[HEIGHT]);
+
+		if (other_group) {
+			printf("other group %u\n", other_group->window);
+		} else
+			printf("other group null\n");
 	}
 }
 
