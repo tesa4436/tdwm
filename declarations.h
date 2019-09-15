@@ -30,6 +30,8 @@ Window* bfs_search(Window *current, const xcb_window_t key);
 void insert_window_after(Window *root, xcb_window_t after_which, xcb_window_t new_window);
 void change_dimensions(Window *current, const uint32_t x, const int32_t width, Window *lim_window, uint32_t local_width, const unsigned char flag);
 uint32_t calc_length(Window *current, const Window *lim_window, const unsigned char flag);
+Window *find_neighboring_group(Window *current, const unsigned char flag);
+
 
 static void (*handler[XCB_GE_GENERIC]) (xcb_generic_event_t *) = {
 	[XCB_BUTTON_PRESS] = NULL,
