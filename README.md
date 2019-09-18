@@ -14,6 +14,6 @@ I test this with ```Xephyr```, an X server implementation running in a window, i
 ## Basic controls
 
 Since currently my focus is on the logic of the binary tree, resizing windows and their groups, there are only 6 basic keybindings:
-* ````Alt + v``` sets the window mapping mode to vertical. New windows will be placed by splitting the currently focused window's height in half.
-* ````Alt + h``` does the same as above, but horizontally.
+* ```Alt + v``` sets the window mapping mode to vertical. New windows will be placed by splitting the currently focused window's height in half.
+* ```Alt + h``` does the same as above, but horizontally.
 * ```Alt + <arrowkeys>``` resizes windows or their groups.
