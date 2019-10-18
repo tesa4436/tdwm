@@ -267,14 +267,8 @@ void change_dimensions(Window *current, const uint32_t x, const int32_t width, W
 			(width >= 0 && (uint32_t) width < local_width))
 	{
 		stack[0].skip = 1;
-
-		if (width < 0) {
-			stack[0].local_width = local_width + width;
-			stack[0].new_local_width = local_width;
-		} else {
-			stack[0].local_width = local_width;
-			stack[0].new_local_width = local_width + (width * -1);
-		}
+		stack[0].local_width = local_width;
+		stack[0].new_local_width = local_width + (width * -1);
 	} else return;
 
 	while (wincount) {
@@ -307,78 +301,67 @@ void change_dimensions(Window *current, const uint32_t x, const int32_t width, W
 				current->dimensions[x_or_y] = x;
 		} else current->dimensions[x_or_y] = x;
 
-		if (!skip && (!current->next[east_or_south] &&
-			lim_window->next[east_or_south] &&
-			lim_window->next[east_or_south]->dimensions[x_or_y] + new_local_width >
-			current->dimensions[x_or_y] + current->dimensions[x_or_y + 2]))
-		{
-			uint32_t operand = ((new_local_width - widthsum) * local_width)
-						% new_local_width + 1;
-			uint32_t operand2 = (lim_window->dimensions[x_or_y + 2] * local_width)
-						% new_local_width;
-
-			if (remsum >= operand) {
-				if (!((remsum - operand) % new_local_width))
-					remsum -= operand; 
-				else	remsum -= operand2;
-			} else	remsum -= operand2;
-		}
-
+		//printf("shadman %u %ld %u %u\n", current->window, remsum, rem, (widthsum * local_width) % new_local_width);
+		//
 		if (current->next[EAST]) {
-			if (flag == HORIZONTAL &&
-				current->next[EAST]->dimensions[X] <
-				lim_window->dimensions[X] + local_width)
-			{
-				wincount++;
-				stack[wincount - 1].remsum = remsum;
-				stack[wincount - 1].widthsum = widthsum;
-				stack[wincount - 1].local_width = local_width;
-				stack[wincount - 1].new_local_width = new_local_width;
-				stack[wincount - 1].win = current->next[EAST];
-				stack[wincount - 1].skip = skip;
-			} else if (flag == VERTICAL &&
-				(skip || lim_window->dimensions[X] +
+			if (flag == HORIZONTAL) {
+				if (current->next[EAST]->dimensions[X] <
+					lim_window->dimensions[X] + local_width)
+				{
+					wincount++;
+					stack[wincount - 1].remsum = remsum;
+					stack[wincount - 1].widthsum = widthsum;
+					stack[wincount - 1].local_width = local_width;
+					stack[wincount - 1].new_local_width = new_local_width;
+					stack[wincount - 1].win = current->next[EAST];
+					stack[wincount - 1].skip = skip;
+				} else
+					current->dimensions[x_or_y + 2] += remsum / new_local_width;
+			} else if (flag == VERTICAL) {
+				if (skip || lim_window->dimensions[X] +
 				lim_window->dimensions[WIDTH] + (BORDER_WIDTH * 2) >
-				current->next[EAST]->dimensions[X]))
-			{
-				wincount++;
-				stack[wincount - 1].remsum = oldremsum - rem;
-				stack[wincount - 1].widthsum = widthsum - oldwidth;
-				stack[wincount - 1].win = current->next[EAST];
-				stack[wincount - 1].local_width = local_width;
-				stack[wincount - 1].new_local_width = new_local_width;
-				stack[wincount - 1].skip = skip;
-			} else if (flag == HORIZONTAL)
-				current->dimensions[x_or_y + 2] += remsum / new_local_width;
+				current->next[EAST]->dimensions[X])
+				{
+					wincount++;
+					stack[wincount - 1].remsum = oldremsum - rem;
+					stack[wincount - 1].widthsum = widthsum - oldwidth;
+					stack[wincount - 1].win = current->next[EAST];
+					stack[wincount - 1].local_width = local_width;
+					stack[wincount - 1].new_local_width = new_local_width;
+					stack[wincount - 1].skip = skip;
+				}
+			}
 		} else if (flag == HORIZONTAL)
 			current->dimensions[x_or_y + 2] += remsum / new_local_width;
 
 		if (current->next[SOUTH]) {
-			if (flag == HORIZONTAL &&
-				(skip || lim_window->dimensions[Y] +
+			if (flag == HORIZONTAL) {
+				if (skip || lim_window->dimensions[Y] +
 				lim_window->dimensions[HEIGHT] + (BORDER_WIDTH * 2) >
-				current->next[SOUTH]->dimensions[Y]))
-			{
-				wincount++;
-				stack[wincount - 1].remsum = oldremsum - rem;
-				stack[wincount - 1].widthsum = widthsum - oldwidth;
-				stack[wincount - 1].local_width = local_width;
-				stack[wincount - 1].new_local_width = new_local_width;
-				stack[wincount - 1].win = current->next[SOUTH];
-				stack[wincount - 1].skip = skip;
-			} else if (flag == VERTICAL &&
-				current->next[SOUTH]->dimensions[Y] <
+				current->next[SOUTH]->dimensions[Y])
+				{
+					wincount++;
+					stack[wincount - 1].remsum = oldremsum - rem;
+					stack[wincount - 1].widthsum = widthsum - oldwidth;
+					stack[wincount - 1].local_width = local_width;
+					stack[wincount - 1].new_local_width = new_local_width;
+					stack[wincount - 1].win = current->next[SOUTH];
+					stack[wincount - 1].skip = skip;
+				}
+			} else if (flag == VERTICAL) {
+				if (current->next[SOUTH]->dimensions[Y] <
 				lim_window->dimensions[Y] + local_width)
-			{
-				wincount++;
-				stack[wincount - 1].remsum = remsum;
-				stack[wincount - 1].widthsum = widthsum;
-				stack[wincount - 1].local_width = local_width;
-				stack[wincount - 1].new_local_width = new_local_width;
-				stack[wincount - 1].win = current->next[SOUTH];
-				stack[wincount - 1].skip = skip;
-			} else if (flag == VERTICAL)
-				current->dimensions[x_or_y + 2] += remsum / new_local_width;
+				{
+					wincount++;
+					stack[wincount - 1].remsum = remsum;
+					stack[wincount - 1].widthsum = widthsum;
+					stack[wincount - 1].local_width = local_width;
+					stack[wincount - 1].new_local_width = new_local_width;
+					stack[wincount - 1].win = current->next[SOUTH];
+					stack[wincount - 1].skip = skip;
+				} else
+					current->dimensions[x_or_y + 2] += remsum / new_local_width;
+			}
 		} else if (flag == VERTICAL)
 			current->dimensions[x_or_y + 2] += remsum / new_local_width;
 
@@ -419,6 +402,8 @@ void insert_window_after(Window *tree_root, const xcb_window_t after_which, cons
 		geom = xcb_get_geometry_reply(connection, root_geom_cookie, NULL);
 		Root->dimensions[WIDTH] = geom->width - BORDER_WIDTH*2;
 		Root->dimensions[HEIGHT] = geom->height - BORDER_WIDTH*2;
+		Root->dimensions[GROUPWIDTH] = Root->dimensions[WIDTH];
+		Root->dimensions[GROUPHEIGHT] = Root->dimensions[HEIGHT];
 		Root->dimensions[X] = 0;
 		Root->dimensions[Y] = 0;
 		xcb_configure_window(connection, Root->window,	XCB_CONFIG_WINDOW_X |
@@ -477,7 +462,7 @@ void insert_window_after(Window *tree_root, const xcb_window_t after_which, cons
 		Current->dimensions[height_or_width] % 2;
 
 		Current->dimensions[height_or_width] =
-		(Current->dimensions[height_or_width] + BORDER_WIDTH * 2) / 2 - BORDER_WIDTH * 2; // calc current's width or height, depends on offset3
+		(Current->dimensions[height_or_width] + BORDER_WIDTH * 2) / 2 - BORDER_WIDTH * 2;
 
 		Current->next[south_or_east]->dimensions[north_or_west - 2] =
 		Current->dimensions[north_or_west - 2]; // either east or south neighbour's x or y
@@ -491,6 +476,19 @@ void insert_window_after(Window *tree_root, const xcb_window_t after_which, cons
 
 		Current->next[south_or_east]->dimensions[width_or_height] =
 		Current->dimensions[width_or_height];
+
+		Current->next[south_or_east]->dimensions[GROUPWIDTH] =
+		Current->next[south_or_east]->dimensions[WIDTH];
+
+		Current->next[south_or_east]->dimensions[GROUPHEIGHT] =
+		Current->next[south_or_east]->dimensions[HEIGHT];
+
+		if (Current->next[south_or_east]->next[south_or_east]) {
+			Current->next[south_or_east]->dimensions[height_or_width + 2] +=
+			Current->next[south_or_east]->next[south_or_east]->
+			dimensions[height_or_width + 2]; // if new window is in between other two, add the following
+							//	group width
+		}
 
 		xcb_configure_window(connection,
 					Current->window,
