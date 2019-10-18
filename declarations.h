@@ -88,6 +88,6 @@ static xcb_get_geometry_reply_t *geom;
 static uint32_t infocus_color, outfocus_color;
 static char split_mode = 'h';
 static xcb_window_t focused_window;
-static Window *Root, *Current, *Current2, *Prev; // "Root" here refers not to the X root window, but the root of the binary tree
+static Window *Root, *Cur, *Cur2, *Prev; // "Root" here refers not to the X root window, but the root of the binary tree
 static xcb_gcontext_t gc;
 static xcb_icccm_wm_hints_t wm_hints;

@@ -10,166 +10,166 @@
 #include "declarations.h"
 #define BORDER_WIDTH 0
 
-void resize_window_group(Window *current, int32_t amount, unsigned char direction)
+void resize_window_group(Window *cur, int32_t amt, unsigned char dir)
 {
 	uint32_t local_length;
-	uint8_t mode, south_or_east, x_or_y, y_or_x, west_or_north;
-	uint16_t width_or_height_mask;
-	Window *current2;
+	uint8_t mode, soe, xoy, yox, won;
+	uint16_t woh_mask;
+	Window *cur2;
 
-	if (!current)
+	if (!cur)
 		return;
 
-	switch (direction) {
+	switch (dir) {
 		case EAST: {
 			mode = HORIZONTAL;
-			south_or_east = SOUTH;
-			west_or_north = WEST;
-			x_or_y = X;
-			y_or_x = Y;
-			width_or_height_mask = XCB_CONFIG_WINDOW_WIDTH; 
+			soe = SOUTH;
+			won = WEST;
+			xoy = X;
+			yox = Y;
+			woh_mask = XCB_CONFIG_WINDOW_WIDTH; 
 
 		} break;
 
 		case SOUTH: {
 			mode = VERTICAL;
-			south_or_east = EAST;
-			west_or_north = NORTH;
-			y_or_x = X;
-			x_or_y = Y;
-			width_or_height_mask = XCB_CONFIG_WINDOW_HEIGHT; 
+			soe = EAST;
+			won = NORTH;
+			yox = X;
+			xoy = Y;
+			woh_mask = XCB_CONFIG_WINDOW_HEIGHT; 
 		} break;
 
 		default: return;
 	}
 
-	local_length = calc_length(current->next[direction], NULL, direction);
+	local_length = calc_length(cur->n[dir], NULL, dir);
 
 	if (local_length) { 
-		current->dimensions[x_or_y + 2] += amount;
+		cur->dim[xoy + 2] += amt;
 		xcb_configure_window(	connection,
-					current->window,
-					width_or_height_mask,
-					current->dimensions + x_or_y + 2);
+					cur->wnd,
+					woh_mask,
+					cur->dim + xoy + 2);
 
-		change_dimensions(	current->next[direction],
-					current->next[direction]->dimensions[x_or_y] + amount,
-					amount * -1,
-					current->next[direction],
+		change_dimensions(	cur->n[dir],
+					cur->n[dir]->dim[xoy] + amt,
+					amt * -1,
+					cur->n[dir],
 					local_length,
 					mode);
 		xcb_flush(connection);
 
-		current2 = current->next[direction];
+		cur2 = cur->n[dir];
 	
-		while (current2) {
-			if (current2->dimensions[y_or_x] +
-				current2->dimensions[y_or_x + 2] >
-				current->dimensions[y_or_x] + current->dimensions[y_or_x + 2])
+		while (cur2) {
+			if (cur2->dim[yox] +
+				cur2->dim[yox + 2] >
+				cur->dim[yox] + cur->dim[yox + 2])
 			{
-				local_length = calc_length(current->next[south_or_east], NULL, direction);
+				local_length = calc_length(cur->n[soe], NULL, dir);
 			
 				if (local_length) {
-					change_dimensions(current->next[south_or_east],
-							current->next[south_or_east]->dimensions[x_or_y],
-							amount,
-							current->next[south_or_east],
+					change_dimensions(cur->n[soe],
+							cur->n[soe]->dim[xoy],
+							amt,
+							cur->n[soe],
 							local_length,
 							mode);
 					xcb_flush(connection);
 				}
 				break;
 			}
-			current2 = current2->next[south_or_east];
+			cur2 = cur2->n[soe];
 		}
 	} else {
-		current = find_neighboring_group(current, mode);
+		cur = find_neighboring_group(cur, mode);
 
-		if (!current)
+		if (!cur)
 			return;
 
-		local_length = calc_length(current, NULL, direction);
-		change_dimensions(current,
-				current->dimensions[x_or_y] + amount,
-				amount * -1,
-				current,
+		local_length = calc_length(cur, NULL, dir);
+		change_dimensions(cur,
+				cur->dim[xoy] + amt,
+				amt * -1,
+				cur,
 				local_length,
 				mode);
 
 		local_length = 0;
 		
-		while ((current = current->next[west_or_north])) {
-			current2 = current;
-			local_length += current->dimensions[x_or_y + 2];
+		while ((cur = cur->n[won])) {
+			cur2 = cur;
+			local_length += cur->dim[xoy + 2];
 		}
 		
-		change_dimensions(current2,
-				current2->dimensions[x_or_y],
-				amount,
-				current2,
+		change_dimensions(cur2,
+				cur2->dim[xoy],
+				amt,
+				cur2,
 				local_length,
 				mode);
 		xcb_flush(connection);
 	}
 }
 
-Window *find_neighboring_group(Window *current, const unsigned char flag)
+Window *find_neighboring_group(Window *cur, const unsigned char flag)
 {
-	Window *current2 = current;
+	Window *cur2 = cur;
 	uint32_t other_grp_dim;
-	uint8_t east_or_south, west_or_north, north_or_west, x_or_y;
+	uint8_t eos, won, now, xoy;
 
-	if (!current)
+	if (!cur)
 		return NULL;
 
 	switch (flag) {
 		case HORIZONTAL: {
-			east_or_south = EAST;
-			west_or_north = WEST;
-			north_or_west = NORTH;
-			x_or_y = X;
+			eos = EAST;
+			won = WEST;
+			now = NORTH;
+			xoy = X;
 		} break;
 
 		case VERTICAL: {
-			east_or_south = SOUTH;
-			west_or_north = NORTH;
-			north_or_west = WEST;
-			x_or_y = Y;
+			eos = SOUTH;
+			won = NORTH;
+			now = WEST;
+			xoy = Y;
 		} break;
 
 		default: return NULL;
 	}
 
-	if (current->next[east_or_south] && (current2 = current->next[east_or_south]))
-		while (current2->next[east_or_south])
-			current2 = current2->next[east_or_south];
+	if (cur->n[eos] && (cur2 = cur->n[eos]))
+		while (cur2->n[eos])
+			cur2 = cur2->n[eos];
 
-	other_grp_dim = current2->dimensions[x_or_y] +
-			current2->dimensions[x_or_y + 2] + BORDER_WIDTH*2;
+	other_grp_dim = cur2->dim[xoy] +
+			cur2->dim[xoy + 2] + BORDER_WIDTH*2;
 
-	while (current->next[west_or_north])
-		current = current->next[west_or_north];
+	while (cur->n[won])
+		cur = cur->n[won];
 
-	for (current = current->next[north_or_west]; current; current = current->next[north_or_west]) {
-		current2 = current->next[east_or_south];
+	for (cur = cur->n[now]; cur; cur = cur->n[now]) {
+		cur2 = cur->n[eos];
 
-		while (current2) {
-			if (current2->dimensions[x_or_y] == other_grp_dim)
-				return current2;
+		while (cur2) {
+			if (cur2->dim[xoy] == other_grp_dim)
+				return cur2;
 
-			current2 = current2->next[east_or_south];
+			cur2 = cur2->n[eos];
 		}
 
-		while (current->next[west_or_north])
-			current = current->next[west_or_north];
+		while (cur->n[won])
+			cur = cur->n[won];
 	}
 
 	return NULL;
 }
 
-uint32_t calc_length(Window *current, const Window *lim_window, const unsigned char flag)
+uint32_t calc_length(Window *cur, const Window *lim_window, const unsigned char flag)
 {
-	if (!current)
+	if (!cur)
 		return 0;
 
 	uint32_t sum = 0;
@@ -191,188 +191,188 @@ uint32_t calc_length(Window *current, const Window *lim_window, const unsigned c
 		default: return 0;
 	}
 
-	Window *current2;
-	sum += current->dimensions[off1] + BORDER_WIDTH*2;
+	Window *cur2;
+	sum += cur->dim[off1] + BORDER_WIDTH*2;
 
-	while ((current = current->next[off2])) {
+	while ((cur = cur->n[off2])) {
 		if (lim_window) {
-			if (current->dimensions[off3] > lim_window->dimensions[off3])
+			if (cur->dim[off3] > lim_window->dim[off3])
 				break;
 
 			if (flag == EAST || flag == SOUTH) {
-				current2 = current->next[off4];
+				cur2 = cur->n[off4];
 
-				while (current2 &&
-					current2->dimensions[off3 - 2] +
-					current2->dimensions[off3] <=
-					lim_window->dimensions[off3 - 2] +
-					lim_window->dimensions[off3])
-						current2 = current2->next[off4];
+				while (cur2 &&
+					cur2->dim[off3 - 2] +
+					cur2->dim[off3] <=
+					lim_window->dim[off3 - 2] +
+					lim_window->dim[off3])
+						cur2 = cur2->n[off4];
 // this loop checks whether this window group is bigger than the limit window
 
-				if (current2)
+				if (cur2)
 					break;
 			}
 		}
-		sum += current->dimensions[off1] + BORDER_WIDTH*2;
+		sum += cur->dim[off1] + BORDER_WIDTH*2;
 	}
 	return sum;
 }
 
-void change_dimensions(Window *current, const uint32_t x, const int32_t width, Window *lim_window, uint32_t local_width, const unsigned char flag)
+void change_dimensions(Window *cur, const uint32_t x, const int32_t w, Window *lim_window, uint32_t lw, const unsigned char flag)
 {
 	if (!lim_window)
 		return;
 
 	struct stack_node stack[4]; // a stack for iterative tree traversal
 	size_t wincount = 0;
-	uint32_t rem = 0, oldwidth = 0, widthsum = 0, new_local_width;
-	int64_t remsum = 0, oldremsum = 0;
-	unsigned char x_or_y, height_or_width, west_or_north, north_or_west, east_or_south, skip;
-	uint16_t x_or_y_mask, width_or_height_mask;
+	uint32_t rem = 0, oldw = 0, wsm = 0, nlw;
+	int64_t rsm = 0, oldrsm = 0;
+	unsigned char xoy, how, won, now, eos, skip;
+	uint16_t xoy_mask, woh_mask;
 
 	if (flag == HORIZONTAL) {
-		x_or_y = X;
-		height_or_width = HEIGHT;
-		west_or_north = WEST;
-		north_or_west = NORTH;
-		east_or_south = EAST;
-		x_or_y_mask = XCB_CONFIG_WINDOW_X;
-		width_or_height_mask = XCB_CONFIG_WINDOW_WIDTH;
+		xoy = X;
+		how = HEIGHT;
+		won = WEST;
+		now = NORTH;
+		eos = EAST;
+		xoy_mask = XCB_CONFIG_WINDOW_X;
+		woh_mask = XCB_CONFIG_WINDOW_WIDTH;
 	} else if (flag == VERTICAL) {
-		x_or_y = Y;
-		height_or_width = WIDTH;
-		west_or_north = NORTH;
-		north_or_west = WEST;
-		east_or_south = SOUTH;
-		x_or_y_mask = XCB_CONFIG_WINDOW_Y;
-		width_or_height_mask = XCB_CONFIG_WINDOW_HEIGHT;
+		xoy = Y;
+		how = WIDTH;
+		won = NORTH;
+		now = WEST;
+		eos = SOUTH;
+		xoy_mask = XCB_CONFIG_WINDOW_Y;
+		woh_mask = XCB_CONFIG_WINDOW_HEIGHT;
 	} else return;
 
-	if (lim_window->dimensions[height_or_width - 2] +
-		lim_window->dimensions[height_or_width] + (BORDER_WIDTH * 2) <=
-		current->dimensions[height_or_width - 2])
+	if (lim_window->dim[how - 2] +
+		lim_window->dim[how] + (BORDER_WIDTH * 2) <=
+		cur->dim[how - 2])
 			return;
 
 	wincount++;
-	stack[0].win = current;
-	stack[0].remsum = 0;
-	stack[0].widthsum = 0;
+	stack[0].wnd = cur;
+	stack[0].rsm = 0;
+	stack[0].wsm = 0;
 
-	if (current != lim_window) {
+	if (cur != lim_window) {
 		stack[0].skip = 0;
-		stack[0].local_width = local_width;
-		stack[0].new_local_width = local_width + (width * -1);
-	} else if ((width < 0 && (uint32_t) (width * -1) < current->dimensions[x_or_y + 2]) ||
-			(width >= 0 && (uint32_t) width < local_width))
+		stack[0].lw = lw;
+		stack[0].nlw = lw + (w * -1);
+	} else if ((w < 0 && (uint32_t) (w * -1) < cur->dim[xoy + 2]) ||
+			(w >= 0 && (uint32_t) w < lw))
 	{
 		stack[0].skip = 1;
-		stack[0].local_width = local_width;
-		stack[0].new_local_width = local_width + (width * -1);
+		stack[0].lw = lw;
+		stack[0].nlw = lw + (w * -1);
 	} else return;
 
 	while (wincount) {
-		current = stack[wincount - 1].win;
-		remsum = stack[wincount - 1].remsum;
-		widthsum = stack[wincount - 1].widthsum;
+		cur = stack[wincount - 1].wnd;
+		rsm = stack[wincount - 1].rsm;
+		wsm = stack[wincount - 1].wsm;
 		skip = stack[wincount - 1].skip;
-		local_width = stack[wincount - 1].local_width;
-		new_local_width = stack[wincount - 1].new_local_width;
+		lw = stack[wincount - 1].lw;
+		nlw = stack[wincount - 1].nlw;
 
-		widthsum += current->dimensions[x_or_y + 2];
-		rem = (current->dimensions[x_or_y + 2] * local_width) % new_local_width; 
-		remsum += rem;
-		oldremsum = remsum;
-		oldwidth = current->dimensions[x_or_y + 2];
-		current->dimensions[x_or_y + 2] =
-		(current->dimensions[x_or_y + 2] * local_width) / new_local_width;
+		wsm += cur->dim[xoy + 2];
+		rem = (cur->dim[xoy + 2] * lw) % nlw; 
+		rsm += rem;
+		oldrsm = rsm;
+		oldw = cur->dim[xoy + 2];
+		cur->dim[xoy + 2] =
+		(cur->dim[xoy + 2] * lw) / nlw;
 
 		wincount--;
 
-		if (current != lim_window) {
-			if (current->next[west_or_north])
-				current->dimensions[x_or_y] =
-				current->next[west_or_north]->dimensions[x_or_y] +
-				current->next[west_or_north]->dimensions[x_or_y + 2] + BORDER_WIDTH*2;
-			else if (current->next[north_or_west])
-				current->dimensions[x_or_y] =
-				current->next[north_or_west]->dimensions[x_or_y];
+		if (cur != lim_window) {
+			if (cur->n[won])
+				cur->dim[xoy] =
+				cur->n[won]->dim[xoy] +
+				cur->n[won]->dim[xoy + 2] + BORDER_WIDTH*2;
+			else if (cur->n[now])
+				cur->dim[xoy] =
+				cur->n[now]->dim[xoy];
 			else
-				current->dimensions[x_or_y] = x;
-		} else current->dimensions[x_or_y] = x;
+				cur->dim[xoy] = x;
+		} else cur->dim[xoy] = x;
 
-		//printf("shadman %u %ld %u %u\n", current->window, remsum, rem, (widthsum * local_width) % new_local_width);
+		//printf("shadman %u %ld %u %u\n", cur->window, rsm, rem, (wsm * lw) % nlw);
 		//
-		if (current->next[EAST]) {
+		if (cur->n[EAST]) {
 			if (flag == HORIZONTAL) {
-				if (current->next[EAST]->dimensions[X] <
-					lim_window->dimensions[X] + local_width)
+				if (cur->n[EAST]->dim[X] <
+					lim_window->dim[X] + lw)
 				{
 					wincount++;
-					stack[wincount - 1].remsum = remsum;
-					stack[wincount - 1].widthsum = widthsum;
-					stack[wincount - 1].local_width = local_width;
-					stack[wincount - 1].new_local_width = new_local_width;
-					stack[wincount - 1].win = current->next[EAST];
+					stack[wincount - 1].rsm = rsm;
+					stack[wincount - 1].wsm = wsm;
+					stack[wincount - 1].lw = lw;
+					stack[wincount - 1].nlw = nlw;
+					stack[wincount - 1].wnd = cur->n[EAST];
 					stack[wincount - 1].skip = skip;
 				} else
-					current->dimensions[x_or_y + 2] += remsum / new_local_width;
+					cur->dim[xoy + 2] += rsm / nlw;
 			} else if (flag == VERTICAL) {
-				if (skip || lim_window->dimensions[X] +
-				lim_window->dimensions[WIDTH] + (BORDER_WIDTH * 2) >
-				current->next[EAST]->dimensions[X])
+				if (skip || lim_window->dim[X] +
+				lim_window->dim[WIDTH] + (BORDER_WIDTH * 2) >
+				cur->n[EAST]->dim[X])
 				{
 					wincount++;
-					stack[wincount - 1].remsum = oldremsum - rem;
-					stack[wincount - 1].widthsum = widthsum - oldwidth;
-					stack[wincount - 1].win = current->next[EAST];
-					stack[wincount - 1].local_width = local_width;
-					stack[wincount - 1].new_local_width = new_local_width;
+					stack[wincount - 1].rsm = oldrsm - rem;
+					stack[wincount - 1].wsm = wsm - oldw;
+					stack[wincount - 1].wnd = cur->n[EAST];
+					stack[wincount - 1].lw = lw;
+					stack[wincount - 1].nlw = nlw;
 					stack[wincount - 1].skip = skip;
 				}
 			}
 		} else if (flag == HORIZONTAL)
-			current->dimensions[x_or_y + 2] += remsum / new_local_width;
+			cur->dim[xoy + 2] += rsm / nlw;
 
-		if (current->next[SOUTH]) {
+		if (cur->n[SOUTH]) {
 			if (flag == HORIZONTAL) {
-				if (skip || lim_window->dimensions[Y] +
-				lim_window->dimensions[HEIGHT] + (BORDER_WIDTH * 2) >
-				current->next[SOUTH]->dimensions[Y])
+				if (skip || lim_window->dim[Y] +
+				lim_window->dim[HEIGHT] + (BORDER_WIDTH * 2) >
+				cur->n[SOUTH]->dim[Y])
 				{
 					wincount++;
-					stack[wincount - 1].remsum = oldremsum - rem;
-					stack[wincount - 1].widthsum = widthsum - oldwidth;
-					stack[wincount - 1].local_width = local_width;
-					stack[wincount - 1].new_local_width = new_local_width;
-					stack[wincount - 1].win = current->next[SOUTH];
+					stack[wincount - 1].rsm = oldrsm - rem;
+					stack[wincount - 1].wsm = wsm - oldw;
+					stack[wincount - 1].lw = lw;
+					stack[wincount - 1].nlw = nlw;
+					stack[wincount - 1].wnd = cur->n[SOUTH];
 					stack[wincount - 1].skip = skip;
 				}
 			} else if (flag == VERTICAL) {
-				if (current->next[SOUTH]->dimensions[Y] <
-				lim_window->dimensions[Y] + local_width)
+				if (cur->n[SOUTH]->dim[Y] <
+				lim_window->dim[Y] + lw)
 				{
 					wincount++;
-					stack[wincount - 1].remsum = remsum;
-					stack[wincount - 1].widthsum = widthsum;
-					stack[wincount - 1].local_width = local_width;
-					stack[wincount - 1].new_local_width = new_local_width;
-					stack[wincount - 1].win = current->next[SOUTH];
+					stack[wincount - 1].rsm = rsm;
+					stack[wincount - 1].wsm = wsm;
+					stack[wincount - 1].lw = lw;
+					stack[wincount - 1].nlw = nlw;
+					stack[wincount - 1].wnd = cur->n[SOUTH];
 					stack[wincount - 1].skip = skip;
 				} else
-					current->dimensions[x_or_y + 2] += remsum / new_local_width;
+					cur->dim[xoy + 2] += rsm / nlw;
 			}
 		} else if (flag == VERTICAL)
-			current->dimensions[x_or_y + 2] += remsum / new_local_width;
+			cur->dim[xoy + 2] += rsm / nlw;
 
 		xcb_configure_window(connection,
-					current->window,
-					x_or_y_mask,
-					current->dimensions + x_or_y);
+					cur->wnd,
+					xoy_mask,
+					cur->dim + xoy);
 		xcb_configure_window(connection,
-					current->window,
-					width_or_height_mask,
-					current->dimensions + x_or_y + 2);
+					cur->wnd,
+					woh_mask,
+					cur->dim + xoy + 2);
 	}
 }
 
@@ -380,7 +380,7 @@ void change_dimensions(Window *current, const uint32_t x, const int32_t width, W
 void insert_window_after(Window *tree_root, const xcb_window_t after_which, const xcb_window_t new_window) // this function uses a bunch of global variables, TODO make local
 {
 	Window Temp;
-	unsigned char south_or_east, north_or_west, height_or_width, width_or_height;
+	unsigned char soe, now, how, woh;
 	uint16_t mask2;
 	xcb_get_geometry_cookie_t root_geom_cookie;
 
@@ -393,128 +393,128 @@ void insert_window_after(Window *tree_root, const xcb_window_t after_which, cons
 			exit(1);
 		}
 
-		Root->window = new_window;
+		Root->wnd = new_window;
 
 		for (int i = 0; i < 4; i++)
-			Root->next[i] = NULL;
+			Root->n[i] = NULL;
 
-		Current = Root; // Current is global, probably should be changed to local
+		Cur = Root; // Cur is global, probably should be changed to local
 		geom = xcb_get_geometry_reply(connection, root_geom_cookie, NULL);
-		Root->dimensions[WIDTH] = geom->width - BORDER_WIDTH*2;
-		Root->dimensions[HEIGHT] = geom->height - BORDER_WIDTH*2;
-		Root->dimensions[GROUPWIDTH] = Root->dimensions[WIDTH];
-		Root->dimensions[GROUPHEIGHT] = Root->dimensions[HEIGHT];
-		Root->dimensions[X] = 0;
-		Root->dimensions[Y] = 0;
-		xcb_configure_window(connection, Root->window,	XCB_CONFIG_WINDOW_X |
+		Root->dim[WIDTH] = geom->width - BORDER_WIDTH*2;
+		Root->dim[HEIGHT] = geom->height - BORDER_WIDTH*2;
+		Root->dim[GROUPWIDTH] = Root->dim[WIDTH];
+		Root->dim[GROUPHEIGHT] = Root->dim[HEIGHT];
+		Root->dim[X] = 0;
+		Root->dim[Y] = 0;
+		xcb_configure_window(connection, Root->wnd,	XCB_CONFIG_WINDOW_X |
 								XCB_CONFIG_WINDOW_Y |
 								XCB_CONFIG_WINDOW_WIDTH |
 								XCB_CONFIG_WINDOW_HEIGHT,
-								Root->dimensions);
+								Root->dim);
 	} else {
-		Current = bfs_search(tree_root, after_which);
+		Cur = bfs_search(tree_root, after_which);
 
-		if (!Current)
+		if (!Cur)
 			return;
-		Temp = *Current;
-		Prev = Current;
+		Temp = *Cur;
+		Prev = Cur;
 		Window *arr[4];
 
 		if (split_mode == 'v') {
-			south_or_east = SOUTH;
-			north_or_west = NORTH;
-			height_or_width = HEIGHT;
-			width_or_height = WIDTH;
+			soe = SOUTH;
+			now = NORTH;
+			how = HEIGHT;
+			woh = WIDTH;
 			mask2 = XCB_CONFIG_WINDOW_HEIGHT;
 			arr[EAST] = NULL;
-			arr[SOUTH] = Temp.next[south_or_east];
+			arr[SOUTH] = Temp.n[soe];
 			arr[NORTH] = Prev;
 			arr[WEST] = NULL;
 		} else {
-			south_or_east= EAST;
-			north_or_west = WEST;
-			height_or_width = WIDTH;
-			width_or_height = HEIGHT;
+			soe= EAST;
+			now = WEST;
+			how = WIDTH;
+			woh = HEIGHT;
 			mask2 = XCB_CONFIG_WINDOW_WIDTH;
-			arr[EAST] = Temp.next[south_or_east];
+			arr[EAST] = Temp.n[soe];
 			arr[SOUTH] = NULL;
 			arr[NORTH] = NULL;
 			arr[WEST] = Prev;
 		}
 
-		Current->next[south_or_east] = malloc(sizeof(Window));
+		Cur->n[soe] = malloc(sizeof(Window));
 
-		if (!Current->next[south_or_east]) {
+		if (!Cur->n[soe]) {
 			fprintf(stderr, "tdwm: error: could not allocate %lu bytes\n", sizeof(Window));
 			exit(2);
 		}
 
-		Current->next[south_or_east]->window = new_window;
+		Cur->n[soe]->wnd = new_window;
 
 		for (int i = 0; i < 4; i++)
-			Current->next[south_or_east]->next[i] = arr[i];
+			Cur->n[soe]->n[i] = arr[i];
 
-		if (Current->next[south_or_east]->next[south_or_east])
-			Current->next[south_or_east]->next[south_or_east]->next[north_or_west] =
-			Current->next[south_or_east];
+		if (Cur->n[soe]->n[soe])
+			Cur->n[soe]->n[soe]->n[now] =
+			Cur->n[soe];
 
-		Current->next[south_or_east]->dimensions[height_or_width] =
-		Current->dimensions[height_or_width] % 2;
+		Cur->n[soe]->dim[how] =
+		Cur->dim[how] % 2;
 
-		Current->dimensions[height_or_width] =
-		(Current->dimensions[height_or_width] + BORDER_WIDTH * 2) / 2 - BORDER_WIDTH * 2;
+		Cur->dim[how] =
+		(Cur->dim[how] + BORDER_WIDTH * 2) / 2 - BORDER_WIDTH * 2;
 
-		Current->next[south_or_east]->dimensions[north_or_west - 2] =
-		Current->dimensions[north_or_west - 2]; // either east or south neighbour's x or y
+		Cur->n[soe]->dim[now - 2] =
+		Cur->dim[now - 2]; // either east or south neighbour's x or y
 
-		Current->next[south_or_east]->dimensions[height_or_width - 2] =
-		Current->dimensions[height_or_width - 2] +
-		((Current->dimensions[height_or_width] + BORDER_WIDTH * 2)); // y or x
+		Cur->n[soe]->dim[how - 2] =
+		Cur->dim[how - 2] +
+		((Cur->dim[how] + BORDER_WIDTH * 2)); // y or x
 
-		Current->next[south_or_east]->dimensions[height_or_width] +=
-		Current->dimensions[height_or_width];
+		Cur->n[soe]->dim[how] +=
+		Cur->dim[how];
 
-		Current->next[south_or_east]->dimensions[width_or_height] =
-		Current->dimensions[width_or_height];
+		Cur->n[soe]->dim[woh] =
+		Cur->dim[woh];
 
-		Current->next[south_or_east]->dimensions[GROUPWIDTH] =
-		Current->next[south_or_east]->dimensions[WIDTH];
+		Cur->n[soe]->dim[GROUPWIDTH] =
+		Cur->n[soe]->dim[WIDTH];
 
-		Current->next[south_or_east]->dimensions[GROUPHEIGHT] =
-		Current->next[south_or_east]->dimensions[HEIGHT];
+		Cur->n[soe]->dim[GROUPHEIGHT] =
+		Cur->n[soe]->dim[HEIGHT];
 
-		if (Current->next[south_or_east]->next[south_or_east]) {
-			Current->next[south_or_east]->dimensions[height_or_width + 2] +=
-			Current->next[south_or_east]->next[south_or_east]->
-			dimensions[height_or_width + 2]; // if new window is in between other two, add the following
-							//	group width
+		if (Cur->n[soe]->n[soe]) {
+			Cur->n[soe]->dim[how + 2] +=
+			Cur->n[soe]->n[soe]->
+			dim[how + 2]; // if new window is in between other two, add the following
+							//	group w
 		}
 
 		xcb_configure_window(connection,
-					Current->window,
+					Cur->wnd,
 					mask2,
-					Current->dimensions + height_or_width);
+					Cur->dim + how);
 		xcb_configure_window(connection,
-					Current->next[south_or_east]->window,
+					Cur->n[soe]->wnd,
 					XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
 					XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
-					Current->next[south_or_east]->dimensions);
+					Cur->n[soe]->dim);
 	}
 }
 
-Window* bfs_search(Window *current, const xcb_window_t key)
+Window* bfs_search(Window *cur, const xcb_window_t key)
 {
-	if (!current)
+	if (!cur)
 		return NULL;
 	Window *east = NULL, *south = NULL;
-	if (current->window == key)
-		return current;
-	if (current->next[EAST])
-		east = bfs_search(current->next[EAST], key);
+	if (cur->wnd == key)
+		return cur;
+	if (cur->n[EAST])
+		east = bfs_search(cur->n[EAST], key);
 	if (east)
 		return east;
-	if (current->next[SOUTH])
-		south = bfs_search(current->next[SOUTH], key);
+	if (cur->n[SOUTH])
+		south = bfs_search(cur->n[SOUTH], key);
 	return south;
 }
 
@@ -526,20 +526,20 @@ void print_node(Window *root, xcb_window_t win)
 	if (window) {
 		if (window == Root)
 			printf("----ROOT----\n");
-		printf("node %d\n",window->window);
+		printf("node %d\n",window->wnd);
 		
-		if (window->next[NORTH])
-			printf("north %d ", window->next[NORTH]->window);
-		if (window->next[EAST])
-			printf("east %d ", window->next[EAST]->window);
-		if (window->next[SOUTH])
-			printf("south %d ", window->next[SOUTH]->window);
-		if (window->next[WEST])
-			printf("west %d\n", window->next[WEST]->window);
-		printf("\n%u %u %u %u\n\n", window->dimensions[X], window->dimensions[Y], window->dimensions[WIDTH], window->dimensions[HEIGHT]);
+		if (window->n[NORTH])
+			printf("north %d ", window->n[NORTH]->wnd);
+		if (window->n[EAST])
+			printf("east %d ", window->n[EAST]->wnd);
+		if (window->n[SOUTH])
+			printf("south %d ", window->n[SOUTH]->wnd);
+		if (window->n[WEST])
+			printf("west %d\n", window->n[WEST]->wnd);
+		printf("\n%u %u %u %u\n\n", window->dim[X], window->dim[Y], window->dim[WIDTH], window->dim[HEIGHT]);
 
 		if (other_group) {
-			printf("other group %u\n", other_group->window);
+			printf("other group %u\n", other_group->wnd);
 		} else
 			printf("other group null\n");
 	}
@@ -563,21 +563,21 @@ void map_request(xcb_generic_event_t *ev)
 						xcb_icccm_get_wm_transient_for(connection, mapreq_ev->window),
 						&prop, NULL))
 	{
-		Current = bfs_search(Root, prop);
+		Cur = bfs_search(Root, prop);
 		geom = xcb_get_geometry_reply(connection,
 		xcb_get_geometry(connection, mapreq_ev->window), NULL);
 
-		if ((Current->dimensions[WIDTH] > geom->width) &&
-			(Current->dimensions[HEIGHT] > geom->height))
+		if ((Cur->dim[WIDTH] > geom->width) &&
+			(Cur->dim[HEIGHT] > geom->height))
 		{
-			values[0] = Current->dimensions[X] +
-			Current->dimensions[WIDTH]/2 - geom->width/2;
+			values[0] = Cur->dim[X] +
+			Cur->dim[WIDTH]/2 - geom->width/2;
 
-			values[1] = Current->dimensions[Y] +
-			Current->dimensions[HEIGHT]/2 - geom->height/2;
+			values[1] = Cur->dim[Y] +
+			Cur->dim[HEIGHT]/2 - geom->height/2;
 		} else {
-			values[0] = Root->dimensions[WIDTH]/2;
-			values[1] = Root->dimensions[HEIGHT]/2;
+			values[0] = Root->dim[WIDTH]/2;
+			values[1] = Root->dim[HEIGHT]/2;
 		}
 		xcb_configure_window(connection,
 					mapreq_ev->window,
@@ -623,23 +623,23 @@ void map_request(xcb_generic_event_t *ev)
 
 void unmap_notify(xcb_generic_event_t *ev)
 {
-	char direction_east;
-	uint32_t local_width, local_height, local_width_or_height;
+	char dir_east;
+	uint32_t lw, local_height, lwoh;
 	unsigned char off1, off2, off3, off4, off5, off6, off7;
 	Window *Temp1 = NULL, *Temp2 = NULL;
 	xcb_unmap_notify_event_t *unmap_ev = (xcb_unmap_notify_event_t *) ev; 
 	xcb_get_property_cookie_t wm_hints_cookie = xcb_icccm_get_wm_hints(connection, unmap_ev->window);
 
-	Current = bfs_search(Root, unmap_ev->window);
+	Cur = bfs_search(Root, unmap_ev->window);
 	
-	if (!Current)
+	if (!Cur)
 		return;
 
-	if (Current->next[EAST] && Current->next[SOUTH]) {
-		direction_east = (Current->dimensions[HEIGHT] + BORDER_WIDTH*2) <
-		calc_length(Current->next[EAST], NULL, SOUTH) ? 0 : 1;
+	if (Cur->n[EAST] && Cur->n[SOUTH]) {
+		dir_east = (Cur->dim[HEIGHT] + BORDER_WIDTH*2) <
+		calc_length(Cur->n[EAST], NULL, SOUTH) ? 0 : 1;
 
-		if (direction_east) {
+		if (dir_east) {
 			off1 = EAST;
 			off2 = SOUTH;
 			off3 = NORTH;
@@ -657,47 +657,47 @@ void unmap_notify(xcb_generic_event_t *ev)
 			off7 = WIDTH;
 		}
 
-		local_width_or_height = calc_length(Current, Current, off1);
-		Current2 = Current->next[off1];
+		lwoh = calc_length(Cur, Cur, off1);
+		Cur2 = Cur->n[off1];
 
-		while (Current2->next[off2])
-			Current2 = Current2->next[off2];	
+		while (Cur2->n[off2])
+			Cur2 = Cur2->n[off2];	
 
-		Current2->next[off2] = Current->next[off2];
-		Current->next[off2]->next[off3] = Current2;
-		Current2 = Current->next[off1];
+		Cur2->n[off2] = Cur->n[off2];
+		Cur->n[off2]->n[off3] = Cur2;
+		Cur2 = Cur->n[off1];
 
-		if (Current->next[off3]) {
-			Current->next[off1]->next[off3] = Current->next[off3];
-			Current->next[off3]->next[off2] = Current->next[off1];
+		if (Cur->n[off3]) {
+			Cur->n[off1]->n[off3] = Cur->n[off3];
+			Cur->n[off3]->n[off2] = Cur->n[off1];
 		} else
-			Current->next[off1]->next[off3] = NULL;
+			Cur->n[off1]->n[off3] = NULL;
 
-		if (Current->next[off4]) {
-			Current->next[off1]->next[off4] = Current->next[off4];
-			Current->next[off4]->next[off1] = Current->next[off1];
+		if (Cur->n[off4]) {
+			Cur->n[off1]->n[off4] = Cur->n[off4];
+			Cur->n[off4]->n[off1] = Cur->n[off1];
 		} else
-			Current->next[off1]->next[off4] = NULL;
+			Cur->n[off1]->n[off4] = NULL;
 
-		change_dimensions(Current->next[off1],
-					Current->dimensions[off6],
-					Current->dimensions[off6 + 2],
-					Current,
-					local_width_or_height,
+		change_dimensions(Cur->n[off1],
+					Cur->dim[off6],
+					Cur->dim[off6 + 2],
+					Cur,
+					lwoh,
 					off5);
 		xcb_flush(connection);
 		// a rather awkward place for a resize function call, TODO restructure
 
-		if (Current == Root) {
-			Root = direction_east ?
-				Current->next[EAST] :
-				Current->next[SOUTH];
-			Root->next[NORTH] = NULL;
-			Root->next[WEST] = NULL;
+		if (Cur == Root) {
+			Root = dir_east ?
+				Cur->n[EAST] :
+				Cur->n[SOUTH];
+			Root->n[NORTH] = NULL;
+			Root->n[WEST] = NULL;
 		}
 
-		free(Current);
-		Current = NULL;
+		free(Cur);
+		Cur = NULL;
 
 		if (xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL)) {
 			xcb_icccm_wm_hints_set_withdrawn(&wm_hints);
@@ -706,7 +706,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 
 		free(ev);
 		return;
-	} else if (!Current->next[EAST] && Current->next[SOUTH]) {
+	} else if (!Cur->n[EAST] && Cur->n[SOUTH]) {
 		off1 = SOUTH;
 		off2 = WEST;
 		off3 = NORTH;
@@ -714,7 +714,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 		off5 = VERTICAL;
 		off6 = WIDTH;
 		off7 = Y;
-	} else if (Current->next[EAST] && !Current->next[SOUTH]) {
+	} else if (Cur->n[EAST] && !Cur->n[SOUTH]) {
 		off1 = EAST;
 		off2 = NORTH;
 		off3 = WEST;
@@ -723,23 +723,23 @@ void unmap_notify(xcb_generic_event_t *ev)
 		off6 = HEIGHT;
 		off7 = X;
 	} else {
-		Current2 = Current;
+		Cur2 = Cur;
 
-		if (Current->next[NORTH]) {
+		if (Cur->n[NORTH]) {
 			off1 = NORTH;
 			off2 = SOUTH;
 			off3 = WIDTH;
 			off4 = VERTICAL;
 			off5 = Y;
-		} else if (Current->next[WEST]) {
+		} else if (Cur->n[WEST]) {
 			off1 = WEST;
 			off2 = EAST;
 			off3 = HEIGHT;
 			off4 = HORIZONTAL;
 			off5 = X;
 		} else {
-			free(Current);
-			Current = NULL;
+			free(Cur);
+			Cur = NULL;
 			Root = NULL;
 			if (xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL)) {
 				xcb_icccm_wm_hints_set_withdrawn(&wm_hints);
@@ -748,23 +748,23 @@ void unmap_notify(xcb_generic_event_t *ev)
 			free(ev);
 			return;
 		}
-		local_width_or_height = calc_length(Current, Current, off1); // TODO maybe move the length calculations to the resize function?
-		Current->next[off1]->next[off2] = NULL;
+		lwoh = calc_length(Cur, Cur, off1); // TODO maybe move the length calculations to the resize function?
+		Cur->n[off1]->n[off2] = NULL;
 
-		while (Current2->next[off1] &&
-			Current2->next[off1]->dimensions[off3] <=
-			Current->dimensions[off3])
-				Current2 = Current2->next[off1];
+		while (Cur2->n[off1] &&
+			Cur2->n[off1]->dim[off3] <=
+			Cur->dim[off3])
+				Cur2 = Cur2->n[off1];
 
-		change_dimensions(Current2,
-					Current2->dimensions[off5],
-					Current->dimensions[off5 + 2],
-					Current,
-					local_width_or_height,
+		change_dimensions(Cur2,
+					Cur2->dim[off5],
+					Cur->dim[off5 + 2],
+					Cur,
+					lwoh,
 					off4);
 		xcb_flush(connection);
-		free(Current);
-		Current = NULL;
+		free(Cur);
+		Cur = NULL;
 
 		if (xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL)) {
 			xcb_icccm_wm_hints_set_withdrawn(&wm_hints);
@@ -773,86 +773,86 @@ void unmap_notify(xcb_generic_event_t *ev)
 		free(ev);
 		return;
 	}
-	local_width_or_height = calc_length(Current, Current, off1); // TODO these 3 length calculations waste resources, put them in separate scopes, refactoring required
-	Current2 = Current;
-	Temp1 = Current->next[EAST];
-	Temp2 = Current->next[SOUTH];
-	Current->next[EAST] = NULL;
-	Current->next[SOUTH] = NULL;
+	lwoh = calc_length(Cur, Cur, off1); // TODO these 3 length calculations waste resources, put them in separate scopes, refactoring required
+	Cur2 = Cur;
+	Temp1 = Cur->n[EAST];
+	Temp2 = Cur->n[SOUTH];
+	Cur->n[EAST] = NULL;
+	Cur->n[SOUTH] = NULL;
 
-	if (Current->next[NORTH])
-		local_height = calc_length(Current, Current, NORTH); // or perhaps precalculate the lengths and store them in the nodes?..
-	else if (Current->next[WEST])
-		local_width = calc_length(Current, Current, WEST);
+	if (Cur->n[NORTH])
+		local_height = calc_length(Cur, Cur, NORTH); // or perhaps precalculate the lengths and store them in the nodes?..
+	else if (Cur->n[WEST])
+		lw = calc_length(Cur, Cur, WEST);
 
-	Current->next[EAST] = Temp1;
-	Current->next[SOUTH] = Temp2;
+	Cur->n[EAST] = Temp1;
+	Cur->n[SOUTH] = Temp2;
 
-	if (Current == Root) {
-		Root = Current->next[off1];
-	Root->next[NORTH] = NULL;
-		Root->next[WEST] = NULL;
-	} else if (Current->next[off2]) {	
-		Current->next[off2]->next[off4] = Current->next[off1];
-		Current->next[off1]->next[off3] = NULL;
-		Current->next[off1]->next[off2] = Current->next[off2];
+	if (Cur == Root) {
+		Root = Cur->n[off1];
+	Root->n[NORTH] = NULL;
+		Root->n[WEST] = NULL;
+	} else if (Cur->n[off2]) {	
+		Cur->n[off2]->n[off4] = Cur->n[off1];
+		Cur->n[off1]->n[off3] = NULL;
+		Cur->n[off1]->n[off2] = Cur->n[off2];
 	} else {
-		Current->next[off3]->next[off1] = Current->next[off1];
-		Current->next[off1]->next[off2] = NULL;
-		Current->next[off1]->next[off3] = Current->next[off3];
+		Cur->n[off3]->n[off1] = Cur->n[off1];
+		Cur->n[off1]->n[off2] = NULL;
+		Cur->n[off1]->n[off3] = Cur->n[off3];
 	}
 
-	if ((Current->dimensions[off6] + BORDER_WIDTH*2) >=
-		calc_length(Current->next[off1], NULL, off4))
-			change_dimensions(Current->next[off1],
-						Current->dimensions[off7],
-						Current->dimensions[off7 + 2],
-						Current,
-						local_width_or_height,
+	if ((Cur->dim[off6] + BORDER_WIDTH*2) >=
+		calc_length(Cur->n[off1], NULL, off4))
+			change_dimensions(Cur->n[off1],
+						Cur->dim[off7],
+						Cur->dim[off7 + 2],
+						Cur,
+						lwoh,
 						off5);
-	else if (Current->next[NORTH]) {
-		Window *Temp = Current->next[NORTH]->next[SOUTH];
-		Current->next[NORTH]->next[SOUTH] = NULL;
+	else if (Cur->n[NORTH]) {
+		Window *Temp = Cur->n[NORTH]->n[SOUTH];
+		Cur->n[NORTH]->n[SOUTH] = NULL;
 
-		while (Current2->next[NORTH] &&
-			Current2->next[NORTH]->dimensions[WIDTH] <=
-			Current->dimensions[WIDTH])
+		while (Cur2->n[NORTH] &&
+			Cur2->n[NORTH]->dim[WIDTH] <=
+			Cur->dim[WIDTH])
 		{
-			Current2 = Current2->next[NORTH];
+			Cur2 = Cur2->n[NORTH];
 		}
 
-		change_dimensions(Current2,
-					Current2->dimensions[Y],
-					Current->dimensions[HEIGHT],
-					Current,
+		change_dimensions(Cur2,
+					Cur2->dim[Y],
+					Cur->dim[HEIGHT],
+					Cur,
 					local_height,
 					VERTICAL);
 
-		Current->next[NORTH]->next[SOUTH] = Temp;
-	} else if (Current->next[WEST]) {
-		Window *Temp = Current->next[WEST]->next[EAST];
-		Current->next[WEST]->next[EAST] = NULL;
+		Cur->n[NORTH]->n[SOUTH] = Temp;
+	} else if (Cur->n[WEST]) {
+		Window *Temp = Cur->n[WEST]->n[EAST];
+		Cur->n[WEST]->n[EAST] = NULL;
 
-		while (Current2->next[WEST] &&
-			Current2->next[WEST]->dimensions[HEIGHT] <=
-			Current->dimensions[HEIGHT])
+		while (Cur2->n[WEST] &&
+			Cur2->n[WEST]->dim[HEIGHT] <=
+			Cur->dim[HEIGHT])
 		{
-			Current2 = Current2->next[WEST];
+			Cur2 = Cur2->n[WEST];
 		}
 
-		change_dimensions(Current2,
-					Current2->dimensions[X],
-					Current->dimensions[WIDTH],
-					Current,
-					local_width,
+		change_dimensions(Cur2,
+					Cur2->dim[X],
+					Cur->dim[WIDTH],
+					Cur,
+					lw,
 					HORIZONTAL);
 
-		Current->next[WEST]->next[EAST] = Temp;
+		Cur->n[WEST]->n[EAST] = Temp;
 	}
 
 	xcb_flush(connection);
-	free(Current);
-	Current = NULL;
+	free(Cur);
+	Cur = NULL;
 
 	if (xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL)) {
 		xcb_icccm_wm_hints_set_withdrawn(&wm_hints);
@@ -906,16 +906,16 @@ void key_press(xcb_generic_event_t *ev)
 		geom = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, win), NULL);
 		printf("%c pressed\n", kmapping->keysyms[key_event->detail * kmapping->keysyms_per_keycode]);
 
-		Current = bfs_search(Root, win);
+		Cur = bfs_search(Root, win);
 		
 		switch (key_event->detail) {
-			case 111: resize_window_group(Current, -10, SOUTH); break; //up arrow key keycode
+			case 111: resize_window_group(Cur, -10, SOUTH); break; //up arrow key keycode
 	
-			case 113: resize_window_group(Current, -10, EAST); break; //left arrow key keycode
+			case 113: resize_window_group(Cur, -10, EAST); break; //left arrow key keycode
 	
-			case 114: resize_window_group(Current, 10, EAST); break; //right arrow key keycode
+			case 114: resize_window_group(Cur, 10, EAST); break; //right arrow key keycode
 
-			case 116: resize_window_group(Current, 10, SOUTH); break; //down arrow key keycode
+			case 116: resize_window_group(Cur, 10, SOUTH); break; //down arrow key keycode
 		
 			case 55: {
 				split_mode = 'v';
@@ -939,7 +939,7 @@ void enter_notify(xcb_generic_event_t *ev)
 {
 	xcb_enter_notify_event_t *enternotf_ev = (xcb_enter_notify_event_t *) ev;
 	print_node(Root, enternotf_ev->event);
-	Current = bfs_search(Root, enternotf_ev->event);
+	Cur = bfs_search(Root, enternotf_ev->event);
 	focused_window = enternotf_ev->event;
 	xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, enternotf_ev->event, XCB_CURRENT_TIME);
 	xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, netatom[NetActiveWindow], XCB_WINDOW, 32, 1, &enternotf_ev->event);
@@ -951,9 +951,9 @@ void focus_in(xcb_generic_event_t *ev)
 {
 	xcb_focus_in_event_t *focusin_ev = (xcb_focus_in_event_t *) ev;
 	focused_window = focusin_ev->event;
-	Current = bfs_search(Root, focusin_ev->event);
-	if (Current)
-		xcb_change_window_attributes(connection, Current->window, XCB_CW_BORDER_PIXEL, &infocus_color);
+	Cur = bfs_search(Root, focusin_ev->event);
+	if (Cur)
+		xcb_change_window_attributes(connection, Cur->wnd, XCB_CW_BORDER_PIXEL, &infocus_color);
 	xcb_flush(connection);
 	free(ev);
 }
@@ -961,9 +961,9 @@ void focus_in(xcb_generic_event_t *ev)
 void focus_out(xcb_generic_event_t *ev)
 {
 	xcb_focus_out_event_t *focusout_ev = (xcb_focus_out_event_t *) ev;
-	Current = bfs_search(Root, focusout_ev->event);
-	if (Current)
-		xcb_change_window_attributes(connection, Current->window, XCB_CW_BORDER_PIXEL, &outfocus_color);
+	Cur = bfs_search(Root, focusout_ev->event);
+	if (Cur)
+		xcb_change_window_attributes(connection, Cur->wnd, XCB_CW_BORDER_PIXEL, &outfocus_color);
 	xcb_flush(connection);
 	free(ev);
 }
