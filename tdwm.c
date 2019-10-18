@@ -10,9 +10,22 @@
 #include "declarations.h"
 #define BORDER_WIDTH 0
 
+/*
+ * cur - current window, passed into the function
+ * amt - amount of pixels, can be negative
+ * dir - direction, either vertical or horizontal
+ * loclen - local_length, used by change_dimensions, it is the length of the
+ * to be resized group
+ *
+ * soe - south or east
+ * xoy - x or y
+ * won - west or north
+ * woh_mask - width or height mask for for the X11 resize function 
+ */
+
 void resize_window_group(Window *cur, int32_t amt, unsigned char dir)
 {
-	uint32_t local_length;
+	uint32_t loclen;
 	uint8_t mode, soe, xoy, yox, won;
 	uint16_t woh_mask;
 	Window *cur2;
@@ -43,11 +56,11 @@ void resize_window_group(Window *cur, int32_t amt, unsigned char dir)
 		default: return;
 	}
 
-	local_length = calc_length(cur->n[dir], NULL, dir);
+	loclen = calc_len(cur->n[dir], NULL, dir);
 
-	if (local_length) { 
+	if (loclen) { 
 		cur->dim[xoy + 2] += amt;
-		xcb_configure_window(	connection,
+		xcb_configure_window(	con,
 					cur->wnd,
 					woh_mask,
 					cur->dim + xoy + 2);
@@ -56,9 +69,9 @@ void resize_window_group(Window *cur, int32_t amt, unsigned char dir)
 					cur->n[dir]->dim[xoy] + amt,
 					amt * -1,
 					cur->n[dir],
-					local_length,
+					loclen,
 					mode);
-		xcb_flush(connection);
+		xcb_flush(con);
 
 		cur2 = cur->n[dir];
 	
@@ -67,16 +80,16 @@ void resize_window_group(Window *cur, int32_t amt, unsigned char dir)
 				cur2->dim[yox + 2] >
 				cur->dim[yox] + cur->dim[yox + 2])
 			{
-				local_length = calc_length(cur->n[soe], NULL, dir);
+				loclen = calc_len(cur->n[soe], NULL, dir);
 			
-				if (local_length) {
+				if (loclen) {
 					change_dimensions(cur->n[soe],
 							cur->n[soe]->dim[xoy],
 							amt,
 							cur->n[soe],
-							local_length,
+							loclen,
 							mode);
-					xcb_flush(connection);
+					xcb_flush(con);
 				}
 				break;
 			}
@@ -88,28 +101,28 @@ void resize_window_group(Window *cur, int32_t amt, unsigned char dir)
 		if (!cur)
 			return;
 
-		local_length = calc_length(cur, NULL, dir);
+		loclen = calc_len(cur, NULL, dir);
 		change_dimensions(cur,
 				cur->dim[xoy] + amt,
 				amt * -1,
 				cur,
-				local_length,
+				loclen,
 				mode);
 
-		local_length = 0;
+		loclen = 0;
 		
 		while ((cur = cur->n[won])) {
 			cur2 = cur;
-			local_length += cur->dim[xoy + 2];
+			loclen += cur->dim[xoy + 2];
 		}
 		
 		change_dimensions(cur2,
 				cur2->dim[xoy],
 				amt,
 				cur2,
-				local_length,
+				loclen,
 				mode);
-		xcb_flush(connection);
+		xcb_flush(con);
 	}
 }
 
@@ -167,7 +180,7 @@ Window *find_neighboring_group(Window *cur, const unsigned char flag)
 	return NULL;
 }
 
-uint32_t calc_length(Window *cur, const Window *lim_window, const unsigned char flag)
+uint32_t calc_len(Window *cur, const Window *limwnd, const unsigned char flag)
 {
 	if (!cur)
 		return 0;
@@ -195,8 +208,8 @@ uint32_t calc_length(Window *cur, const Window *lim_window, const unsigned char 
 	sum += cur->dim[off1] + BORDER_WIDTH*2;
 
 	while ((cur = cur->n[off2])) {
-		if (lim_window) {
-			if (cur->dim[off3] > lim_window->dim[off3])
+		if (limwnd) {
+			if (cur->dim[off3] > limwnd->dim[off3])
 				break;
 
 			if (flag == EAST || flag == SOUTH) {
@@ -205,8 +218,8 @@ uint32_t calc_length(Window *cur, const Window *lim_window, const unsigned char 
 				while (cur2 &&
 					cur2->dim[off3 - 2] +
 					cur2->dim[off3] <=
-					lim_window->dim[off3 - 2] +
-					lim_window->dim[off3])
+					limwnd->dim[off3 - 2] +
+					limwnd->dim[off3])
 						cur2 = cur2->n[off4];
 // this loop checks whether this window group is bigger than the limit window
 
@@ -219,13 +232,13 @@ uint32_t calc_length(Window *cur, const Window *lim_window, const unsigned char 
 	return sum;
 }
 
-void change_dimensions(Window *cur, const uint32_t x, const int32_t w, Window *lim_window, uint32_t lw, const unsigned char flag)
+void change_dimensions(Window *cur, const uint32_t x, const int32_t w, Window *limwnd, uint32_t lw, const unsigned char flag)
 {
-	if (!lim_window)
+	if (!limwnd)
 		return;
 
 	struct stack_node stack[4]; // a stack for iterative tree traversal
-	size_t wincount = 0;
+	size_t wndc = 0;
 	uint32_t rem = 0, oldw = 0, wsm = 0, nlw;
 	int64_t rsm = 0, oldrsm = 0;
 	unsigned char xoy, how, won, now, eos, skip;
@@ -249,17 +262,17 @@ void change_dimensions(Window *cur, const uint32_t x, const int32_t w, Window *l
 		woh_mask = XCB_CONFIG_WINDOW_HEIGHT;
 	} else return;
 
-	if (lim_window->dim[how - 2] +
-		lim_window->dim[how] + (BORDER_WIDTH * 2) <=
+	if (limwnd->dim[how - 2] +
+		limwnd->dim[how] + (BORDER_WIDTH * 2) <=
 		cur->dim[how - 2])
 			return;
 
-	wincount++;
+	wndc++;
 	stack[0].wnd = cur;
 	stack[0].rsm = 0;
 	stack[0].wsm = 0;
 
-	if (cur != lim_window) {
+	if (cur != limwnd) {
 		stack[0].skip = 0;
 		stack[0].lw = lw;
 		stack[0].nlw = lw + (w * -1);
@@ -271,13 +284,13 @@ void change_dimensions(Window *cur, const uint32_t x, const int32_t w, Window *l
 		stack[0].nlw = lw + (w * -1);
 	} else return;
 
-	while (wincount) {
-		cur = stack[wincount - 1].wnd;
-		rsm = stack[wincount - 1].rsm;
-		wsm = stack[wincount - 1].wsm;
-		skip = stack[wincount - 1].skip;
-		lw = stack[wincount - 1].lw;
-		nlw = stack[wincount - 1].nlw;
+	while (wndc) {
+		cur = stack[wndc - 1].wnd;
+		rsm = stack[wndc - 1].rsm;
+		wsm = stack[wndc - 1].wsm;
+		skip = stack[wndc - 1].skip;
+		lw = stack[wndc - 1].lw;
+		nlw = stack[wndc - 1].nlw;
 
 		wsm += cur->dim[xoy + 2];
 		rem = (cur->dim[xoy + 2] * lw) % nlw; 
@@ -287,9 +300,9 @@ void change_dimensions(Window *cur, const uint32_t x, const int32_t w, Window *l
 		cur->dim[xoy + 2] =
 		(cur->dim[xoy + 2] * lw) / nlw;
 
-		wincount--;
+		wndc--;
 
-		if (cur != lim_window) {
+		if (cur != limwnd) {
 			if (cur->n[won])
 				cur->dim[xoy] =
 				cur->n[won]->dim[xoy] +
@@ -306,29 +319,29 @@ void change_dimensions(Window *cur, const uint32_t x, const int32_t w, Window *l
 		if (cur->n[EAST]) {
 			if (flag == HORIZONTAL) {
 				if (cur->n[EAST]->dim[X] <
-					lim_window->dim[X] + lw)
+					limwnd->dim[X] + lw)
 				{
-					wincount++;
-					stack[wincount - 1].rsm = rsm;
-					stack[wincount - 1].wsm = wsm;
-					stack[wincount - 1].lw = lw;
-					stack[wincount - 1].nlw = nlw;
-					stack[wincount - 1].wnd = cur->n[EAST];
-					stack[wincount - 1].skip = skip;
+					wndc++;
+					stack[wndc - 1].rsm = rsm;
+					stack[wndc - 1].wsm = wsm;
+					stack[wndc - 1].lw = lw;
+					stack[wndc - 1].nlw = nlw;
+					stack[wndc - 1].wnd = cur->n[EAST];
+					stack[wndc - 1].skip = skip;
 				} else
 					cur->dim[xoy + 2] += rsm / nlw;
 			} else if (flag == VERTICAL) {
-				if (skip || lim_window->dim[X] +
-				lim_window->dim[WIDTH] + (BORDER_WIDTH * 2) >
+				if (skip || limwnd->dim[X] +
+				limwnd->dim[WIDTH] + (BORDER_WIDTH * 2) >
 				cur->n[EAST]->dim[X])
 				{
-					wincount++;
-					stack[wincount - 1].rsm = oldrsm - rem;
-					stack[wincount - 1].wsm = wsm - oldw;
-					stack[wincount - 1].wnd = cur->n[EAST];
-					stack[wincount - 1].lw = lw;
-					stack[wincount - 1].nlw = nlw;
-					stack[wincount - 1].skip = skip;
+					wndc++;
+					stack[wndc - 1].rsm = oldrsm - rem;
+					stack[wndc - 1].wsm = wsm - oldw;
+					stack[wndc - 1].wnd = cur->n[EAST];
+					stack[wndc - 1].lw = lw;
+					stack[wndc - 1].nlw = nlw;
+					stack[wndc - 1].skip = skip;
 				}
 			}
 		} else if (flag == HORIZONTAL)
@@ -336,40 +349,40 @@ void change_dimensions(Window *cur, const uint32_t x, const int32_t w, Window *l
 
 		if (cur->n[SOUTH]) {
 			if (flag == HORIZONTAL) {
-				if (skip || lim_window->dim[Y] +
-				lim_window->dim[HEIGHT] + (BORDER_WIDTH * 2) >
+				if (skip || limwnd->dim[Y] +
+				limwnd->dim[HEIGHT] + (BORDER_WIDTH * 2) >
 				cur->n[SOUTH]->dim[Y])
 				{
-					wincount++;
-					stack[wincount - 1].rsm = oldrsm - rem;
-					stack[wincount - 1].wsm = wsm - oldw;
-					stack[wincount - 1].lw = lw;
-					stack[wincount - 1].nlw = nlw;
-					stack[wincount - 1].wnd = cur->n[SOUTH];
-					stack[wincount - 1].skip = skip;
+					wndc++;
+					stack[wndc - 1].rsm = oldrsm - rem;
+					stack[wndc - 1].wsm = wsm - oldw;
+					stack[wndc - 1].lw = lw;
+					stack[wndc - 1].nlw = nlw;
+					stack[wndc - 1].wnd = cur->n[SOUTH];
+					stack[wndc - 1].skip = skip;
 				}
 			} else if (flag == VERTICAL) {
 				if (cur->n[SOUTH]->dim[Y] <
-				lim_window->dim[Y] + lw)
+				limwnd->dim[Y] + lw)
 				{
-					wincount++;
-					stack[wincount - 1].rsm = rsm;
-					stack[wincount - 1].wsm = wsm;
-					stack[wincount - 1].lw = lw;
-					stack[wincount - 1].nlw = nlw;
-					stack[wincount - 1].wnd = cur->n[SOUTH];
-					stack[wincount - 1].skip = skip;
+					wndc++;
+					stack[wndc - 1].rsm = rsm;
+					stack[wndc - 1].wsm = wsm;
+					stack[wndc - 1].lw = lw;
+					stack[wndc - 1].nlw = nlw;
+					stack[wndc - 1].wnd = cur->n[SOUTH];
+					stack[wndc - 1].skip = skip;
 				} else
 					cur->dim[xoy + 2] += rsm / nlw;
 			}
 		} else if (flag == VERTICAL)
 			cur->dim[xoy + 2] += rsm / nlw;
 
-		xcb_configure_window(connection,
+		xcb_configure_window(con,
 					cur->wnd,
 					xoy_mask,
 					cur->dim + xoy);
-		xcb_configure_window(connection,
+		xcb_configure_window(con,
 					cur->wnd,
 					woh_mask,
 					cur->dim + xoy + 2);
@@ -385,7 +398,7 @@ void insert_window_after(Window *tree_root, const xcb_window_t after_which, cons
 	xcb_get_geometry_cookie_t root_geom_cookie;
 
 	if (after_which == root) {
-		root_geom_cookie = xcb_get_geometry(connection, root);
+		root_geom_cookie = xcb_get_geometry(con, root);
 		Root = malloc(sizeof(Window));
 
 		if (!Root) {
@@ -399,14 +412,14 @@ void insert_window_after(Window *tree_root, const xcb_window_t after_which, cons
 			Root->n[i] = NULL;
 
 		Cur = Root; // Cur is global, probably should be changed to local
-		geom = xcb_get_geometry_reply(connection, root_geom_cookie, NULL);
+		geom = xcb_get_geometry_reply(con, root_geom_cookie, NULL);
 		Root->dim[WIDTH] = geom->width - BORDER_WIDTH*2;
 		Root->dim[HEIGHT] = geom->height - BORDER_WIDTH*2;
 		Root->dim[GROUPWIDTH] = Root->dim[WIDTH];
 		Root->dim[GROUPHEIGHT] = Root->dim[HEIGHT];
 		Root->dim[X] = 0;
 		Root->dim[Y] = 0;
-		xcb_configure_window(connection, Root->wnd,	XCB_CONFIG_WINDOW_X |
+		xcb_configure_window(con, Root->wnd,	XCB_CONFIG_WINDOW_X |
 								XCB_CONFIG_WINDOW_Y |
 								XCB_CONFIG_WINDOW_WIDTH |
 								XCB_CONFIG_WINDOW_HEIGHT,
@@ -490,11 +503,11 @@ void insert_window_after(Window *tree_root, const xcb_window_t after_which, cons
 							//	group w
 		}
 
-		xcb_configure_window(connection,
+		xcb_configure_window(con,
 					Cur->wnd,
 					mask2,
 					Cur->dim + how);
-		xcb_configure_window(connection,
+		xcb_configure_window(con,
 					Cur->n[soe]->wnd,
 					XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
 					XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
@@ -549,23 +562,23 @@ void map_request(xcb_generic_event_t *ev)
 {
 	xcb_map_request_event_t *mapreq_ev = (xcb_map_request_event_t *) ev;
 	xcb_get_property_cookie_t wm_hints_cookie =
-		xcb_icccm_get_wm_hints(connection, mapreq_ev->window);
+		xcb_icccm_get_wm_hints(con, mapreq_ev->window);
 
 	xcb_window_t prop = 0;
 	values[0] = BORDER_WIDTH;
 	geom = NULL;
-	xcb_configure_window(connection,
+	xcb_configure_window(con,
 				mapreq_ev->window,
 				XCB_CONFIG_WINDOW_BORDER_WIDTH,
 				values);
 
-	if (xcb_icccm_get_wm_transient_for_reply(connection,
-						xcb_icccm_get_wm_transient_for(connection, mapreq_ev->window),
+	if (xcb_icccm_get_wm_transient_for_reply(con,
+						xcb_icccm_get_wm_transient_for(con, mapreq_ev->window),
 						&prop, NULL))
 	{
 		Cur = bfs_search(Root, prop);
-		geom = xcb_get_geometry_reply(connection,
-		xcb_get_geometry(connection, mapreq_ev->window), NULL);
+		geom = xcb_get_geometry_reply(con,
+		xcb_get_geometry(con, mapreq_ev->window), NULL);
 
 		if ((Cur->dim[WIDTH] > geom->width) &&
 			(Cur->dim[HEIGHT] > geom->height))
@@ -579,34 +592,34 @@ void map_request(xcb_generic_event_t *ev)
 			values[0] = Root->dim[WIDTH]/2;
 			values[1] = Root->dim[HEIGHT]/2;
 		}
-		xcb_configure_window(connection,
+		xcb_configure_window(con,
 					mapreq_ev->window,
 					XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
 					values);
 	} else
 		insert_window_after(Root, focused_window, mapreq_ev->window); // insert mapreq_ev->window after focused_window
-	if (xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL)) {
+	if (xcb_icccm_get_wm_hints_reply(con, wm_hints_cookie, &wm_hints, NULL)) {
 		xcb_icccm_wm_hints_set_normal(&wm_hints);
-		xcb_icccm_set_wm_hints(connection, mapreq_ev->window, &wm_hints);
+		xcb_icccm_set_wm_hints(con, mapreq_ev->window, &wm_hints);
 	}
 
 	values[0] = XCB_EVENT_MASK_ENTER_WINDOW |
 			XCB_EVENT_MASK_EXPOSURE |
 			XCB_EVENT_MASK_FOCUS_CHANGE;
 
-	xcb_change_window_attributes(connection,
+	xcb_change_window_attributes(con,
 					mapreq_ev->window,
 					XCB_CW_EVENT_MASK,
 					values);			
 
-	xcb_map_window(connection,mapreq_ev->window);
+	xcb_map_window(con,mapreq_ev->window);
 	focused_window = mapreq_ev->window;
-	xcb_set_input_focus(connection,
+	xcb_set_input_focus(con,
 				XCB_INPUT_FOCUS_POINTER_ROOT,
 				mapreq_ev->window,
 				XCB_CURRENT_TIME);
 
-	xcb_change_property(connection,
+	xcb_change_property(con,
 				XCB_PROP_MODE_REPLACE,
 				root,
 				netatom[NetActiveWindow],
@@ -614,7 +627,7 @@ void map_request(xcb_generic_event_t *ev)
 				32,
 				1,
 				&mapreq_ev->window);
-	xcb_flush(connection);
+	xcb_flush(con);
 
 	free(geom);
 	geom = NULL;
@@ -628,7 +641,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 	unsigned char off1, off2, off3, off4, off5, off6, off7;
 	Window *Temp1 = NULL, *Temp2 = NULL;
 	xcb_unmap_notify_event_t *unmap_ev = (xcb_unmap_notify_event_t *) ev; 
-	xcb_get_property_cookie_t wm_hints_cookie = xcb_icccm_get_wm_hints(connection, unmap_ev->window);
+	xcb_get_property_cookie_t wm_hints_cookie = xcb_icccm_get_wm_hints(con, unmap_ev->window);
 
 	Cur = bfs_search(Root, unmap_ev->window);
 	
@@ -637,7 +650,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 
 	if (Cur->n[EAST] && Cur->n[SOUTH]) {
 		dir_east = (Cur->dim[HEIGHT] + BORDER_WIDTH*2) <
-		calc_length(Cur->n[EAST], NULL, SOUTH) ? 0 : 1;
+		calc_len(Cur->n[EAST], NULL, SOUTH) ? 0 : 1;
 
 		if (dir_east) {
 			off1 = EAST;
@@ -657,7 +670,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 			off7 = WIDTH;
 		}
 
-		lwoh = calc_length(Cur, Cur, off1);
+		lwoh = calc_len(Cur, Cur, off1);
 		Cur2 = Cur->n[off1];
 
 		while (Cur2->n[off2])
@@ -685,7 +698,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 					Cur,
 					lwoh,
 					off5);
-		xcb_flush(connection);
+		xcb_flush(con);
 		// a rather awkward place for a resize function call, TODO restructure
 
 		if (Cur == Root) {
@@ -699,9 +712,9 @@ void unmap_notify(xcb_generic_event_t *ev)
 		free(Cur);
 		Cur = NULL;
 
-		if (xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL)) {
+		if (xcb_icccm_get_wm_hints_reply(con, wm_hints_cookie, &wm_hints, NULL)) {
 			xcb_icccm_wm_hints_set_withdrawn(&wm_hints);
-			xcb_icccm_set_wm_hints(connection, unmap_ev->window, &wm_hints);
+			xcb_icccm_set_wm_hints(con, unmap_ev->window, &wm_hints);
 		}
 
 		free(ev);
@@ -741,14 +754,14 @@ void unmap_notify(xcb_generic_event_t *ev)
 			free(Cur);
 			Cur = NULL;
 			Root = NULL;
-			if (xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL)) {
+			if (xcb_icccm_get_wm_hints_reply(con, wm_hints_cookie, &wm_hints, NULL)) {
 				xcb_icccm_wm_hints_set_withdrawn(&wm_hints);
-				xcb_icccm_set_wm_hints(connection, unmap_ev->window, &wm_hints);
+				xcb_icccm_set_wm_hints(con, unmap_ev->window, &wm_hints);
 			}
 			free(ev);
 			return;
 		}
-		lwoh = calc_length(Cur, Cur, off1); // TODO maybe move the length calculations to the resize function?
+		lwoh = calc_len(Cur, Cur, off1); // TODO maybe move the length calculations to the resize function?
 		Cur->n[off1]->n[off2] = NULL;
 
 		while (Cur2->n[off1] &&
@@ -762,18 +775,18 @@ void unmap_notify(xcb_generic_event_t *ev)
 					Cur,
 					lwoh,
 					off4);
-		xcb_flush(connection);
+		xcb_flush(con);
 		free(Cur);
 		Cur = NULL;
 
-		if (xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL)) {
+		if (xcb_icccm_get_wm_hints_reply(con, wm_hints_cookie, &wm_hints, NULL)) {
 			xcb_icccm_wm_hints_set_withdrawn(&wm_hints);
-			xcb_icccm_set_wm_hints(connection, unmap_ev->window, &wm_hints);
+			xcb_icccm_set_wm_hints(con, unmap_ev->window, &wm_hints);
 		}
 		free(ev);
 		return;
 	}
-	lwoh = calc_length(Cur, Cur, off1); // TODO these 3 length calculations waste resources, put them in separate scopes, refactoring required
+	lwoh = calc_len(Cur, Cur, off1); // TODO these 3 length calculations waste resources, put them in separate scopes, refactoring required
 	Cur2 = Cur;
 	Temp1 = Cur->n[EAST];
 	Temp2 = Cur->n[SOUTH];
@@ -781,9 +794,9 @@ void unmap_notify(xcb_generic_event_t *ev)
 	Cur->n[SOUTH] = NULL;
 
 	if (Cur->n[NORTH])
-		local_height = calc_length(Cur, Cur, NORTH); // or perhaps precalculate the lengths and store them in the nodes?..
+		local_height = calc_len(Cur, Cur, NORTH); // or perhaps precalculate the lengths and store them in the nodes?..
 	else if (Cur->n[WEST])
-		lw = calc_length(Cur, Cur, WEST);
+		lw = calc_len(Cur, Cur, WEST);
 
 	Cur->n[EAST] = Temp1;
 	Cur->n[SOUTH] = Temp2;
@@ -803,7 +816,7 @@ void unmap_notify(xcb_generic_event_t *ev)
 	}
 
 	if ((Cur->dim[off6] + BORDER_WIDTH*2) >=
-		calc_length(Cur->n[off1], NULL, off4))
+		calc_len(Cur->n[off1], NULL, off4))
 			change_dimensions(Cur->n[off1],
 						Cur->dim[off7],
 						Cur->dim[off7 + 2],
@@ -850,23 +863,23 @@ void unmap_notify(xcb_generic_event_t *ev)
 		Cur->n[WEST]->n[EAST] = Temp;
 	}
 
-	xcb_flush(connection);
+	xcb_flush(con);
 	free(Cur);
 	Cur = NULL;
 
-	if (xcb_icccm_get_wm_hints_reply(connection, wm_hints_cookie, &wm_hints, NULL)) {
+	if (xcb_icccm_get_wm_hints_reply(con, wm_hints_cookie, &wm_hints, NULL)) {
 		xcb_icccm_wm_hints_set_withdrawn(&wm_hints);
-		xcb_icccm_set_wm_hints(connection, unmap_ev->window, &wm_hints);
+		xcb_icccm_set_wm_hints(con, unmap_ev->window, &wm_hints);
 	}
 	
 	free(ev);
 }
 
-struct key_mapping* get_keyboard_mapping(xcb_connection_t *connection, const xcb_setup_t *setup)
+struct key_mapping* get_keyboard_mapping(xcb_connection_t *con, const xcb_setup_t *setup)
 {
 	xcb_get_keyboard_mapping_reply_t *keyboard_mapping =
-	xcb_get_keyboard_mapping_reply(	connection, xcb_get_keyboard_mapping(
-								connection,
+	xcb_get_keyboard_mapping_reply(con, xcb_get_keyboard_mapping(
+								con,
 								setup->min_keycode,
 															setup->max_keycode - setup->min_keycode + 1),
 												NULL);
@@ -903,20 +916,20 @@ void key_press(xcb_generic_event_t *ev)
 
 	if (key_event->child) {
 		win = key_event->child;
-		geom = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, win), NULL);
+		geom = xcb_get_geometry_reply(con, xcb_get_geometry(con, win), NULL);
 		printf("%c pressed\n", kmapping->keysyms[key_event->detail * kmapping->keysyms_per_keycode]);
 
 		Cur = bfs_search(Root, win);
 		
 		switch (key_event->detail) {
-			case 111: resize_window_group(Cur, -10, SOUTH); break; //up arrow key keycode
-	
-			case 113: resize_window_group(Cur, -10, EAST); break; //left arrow key keycode
-	
-			case 114: resize_window_group(Cur, 10, EAST); break; //right arrow key keycode
-
-			case 116: resize_window_group(Cur, 10, SOUTH); break; //down arrow key keycode
-		
+			case 111: resize_window_group(Cur, -10, SOUTH); break;
+			//up arrow key keycode
+			case 113: resize_window_group(Cur, -10, EAST); break;
+			//left arrow key keycode
+			case 114: resize_window_group(Cur, 10, EAST); break;
+			//right arrow key keycode
+			case 116: resize_window_group(Cur, 10, SOUTH); break;
+			//down arrow key keycode
 			case 55: {
 				split_mode = 'v';
 			}
@@ -941,9 +954,9 @@ void enter_notify(xcb_generic_event_t *ev)
 	print_node(Root, enternotf_ev->event);
 	Cur = bfs_search(Root, enternotf_ev->event);
 	focused_window = enternotf_ev->event;
-	xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, enternotf_ev->event, XCB_CURRENT_TIME);
-	xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, netatom[NetActiveWindow], XCB_WINDOW, 32, 1, &enternotf_ev->event);
-	xcb_flush(connection);
+	xcb_set_input_focus(con, XCB_INPUT_FOCUS_POINTER_ROOT, enternotf_ev->event, XCB_CURRENT_TIME);
+	xcb_change_property(con, XCB_PROP_MODE_REPLACE, root, netatom[NetActiveWindow], XCB_WINDOW, 32, 1, &enternotf_ev->event);
+	xcb_flush(con);
 	free(ev);
 }
 
@@ -953,8 +966,8 @@ void focus_in(xcb_generic_event_t *ev)
 	focused_window = focusin_ev->event;
 	Cur = bfs_search(Root, focusin_ev->event);
 	if (Cur)
-		xcb_change_window_attributes(connection, Cur->wnd, XCB_CW_BORDER_PIXEL, &infocus_color);
-	xcb_flush(connection);
+		xcb_change_window_attributes(con, Cur->wnd, XCB_CW_BORDER_PIXEL, &infocus_color);
+	xcb_flush(con);
 	free(ev);
 }
 
@@ -963,8 +976,8 @@ void focus_out(xcb_generic_event_t *ev)
 	xcb_focus_out_event_t *focusout_ev = (xcb_focus_out_event_t *) ev;
 	Cur = bfs_search(Root, focusout_ev->event);
 	if (Cur)
-		xcb_change_window_attributes(connection, Cur->wnd, XCB_CW_BORDER_PIXEL, &outfocus_color);
-	xcb_flush(connection);
+		xcb_change_window_attributes(con, Cur->wnd, XCB_CW_BORDER_PIXEL, &outfocus_color);
+	xcb_flush(con);
 	free(ev);
 }
 
@@ -988,7 +1001,7 @@ void configure_request(xcb_generic_event_t *ev)
 
 uint32_t get_color(uint16_t r, uint16_t g, uint16_t b) // TODO: error checking
 {
-	xcb_alloc_color_reply_t *color_rep = xcb_alloc_color_reply(connection, xcb_alloc_color(connection, screen->default_colormap, r, g, b), NULL);
+	xcb_alloc_color_reply_t *color_rep = xcb_alloc_color_reply(con, xcb_alloc_color(con, screen->default_colormap, r, g, b), NULL);
 	uint32_t color = color_rep->pixel;
 	free(color_rep);
 	return color;
@@ -996,37 +1009,37 @@ uint32_t get_color(uint16_t r, uint16_t g, uint16_t b) // TODO: error checking
 
 void setup(void)
 {
-	connection = xcb_connect(NULL, NULL);
+	con = xcb_connect(NULL, NULL);
 
-	if (xcb_connection_has_error(connection)) {
+	if (xcb_connection_has_error(con)) {
 		fprintf(stderr, "tdwm: could not connect to X server, exiting\n");
 		exit(1);
 	}
 
-	xorg_setup = xcb_get_setup(connection);
-	kmapping = get_keyboard_mapping(connection, xorg_setup);
+	xorg_setup = xcb_get_setup(con);
+	kmapping = get_keyboard_mapping(con, xorg_setup);
 	screen = xcb_setup_roots_iterator(xorg_setup).data;
 	root = screen->root;
 	focused_window = root;
-	gc = xcb_generate_id(connection);
+	gc = xcb_generate_id(con);
 	values[0] = 1;
 	values[1] = XCB_LINE_STYLE_SOLID | XCB_CAP_STYLE_BUTT | XCB_JOIN_STYLE_MITER;
-	xcb_create_gc(connection, gc, root, XCB_GC_LINE_WIDTH | XCB_GC_LINE_STYLE | XCB_GC_CAP_STYLE | XCB_GC_JOIN_STYLE, values);
+	xcb_create_gc(con, gc, root, XCB_GC_LINE_WIDTH | XCB_GC_LINE_STYLE | XCB_GC_CAP_STYLE | XCB_GC_JOIN_STYLE, values);
 	values[0] = screen->white_pixel;
 	values[1] = screen->black_pixel;
-	xcb_change_gc(connection, gc, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, values);
+	xcb_change_gc(con, gc, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, values);
 	
 	// this code that sets up atoms was taken from dwm's code
 	xcb_intern_atom_cookie_t atom_cookie[SETUP_NUM_ATOMS];
 
 	for (int i=0; i<SETUP_NUM_ATOMS; i++) {
-		atom_cookie[i] = xcb_intern_atom(connection, 0, strlen(setup_atoms[i].name), setup_atoms[i].name);
+		atom_cookie[i] = xcb_intern_atom(con, 0, strlen(setup_atoms[i].name), setup_atoms[i].name);
 	}
 
 	for (int i=0; i<SETUP_NUM_ATOMS; i++) {
 		xcb_intern_atom_reply_t *reply;
 
-		if ((reply = xcb_intern_atom_reply(connection, atom_cookie[i], NULL))) {
+		if ((reply = xcb_intern_atom_reply(con, atom_cookie[i], NULL))) {
 			if (setup_atoms[i].isnet)
 				netatom[setup_atoms[i].number] = reply->atom;
 			else
@@ -1036,22 +1049,22 @@ void setup(void)
 	}
 	infocus_color = get_color((uint16_t) -1, 0, 0);
 	outfocus_color = get_color(10000, 10000, 10000);
-	xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, netatom[NetSupported], XCB_ATOM, 32, NetLast, (unsigned char*)netatom);
+	xcb_change_property(con, XCB_PROP_MODE_REPLACE, root, netatom[NetSupported], XCB_ATOM, 32, NetLast, (unsigned char*)netatom);
 	values[0] = 	XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | 	XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT |
 	 		XCB_EVENT_MASK_ENTER_WINDOW | 		XCB_EVENT_MASK_LEAVE_WINDOW |
 			XCB_EVENT_MASK_STRUCTURE_NOTIFY;
-	xcb_change_window_attributes(connection, root, XCB_CW_EVENT_MASK, values);
-	xcb_grab_key(connection, 0, root, XCB_MOD_MASK_1, 116, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
-	xcb_grab_key(connection, 0, root, XCB_MOD_MASK_1, 111, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
-	xcb_grab_key(connection, 0, root, XCB_MOD_MASK_1, 113, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
-	xcb_grab_key(connection, 0, root, XCB_MOD_MASK_1, 114, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
-	xcb_grab_key(connection, 0, root, XCB_MOD_MASK_1, 55, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC); // letter v
-	xcb_grab_key(connection, 0, root, XCB_MOD_MASK_1, 43, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC); // letter h
-	//xcb_grab_pointer(connection, 1, root, XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE, XCB_CURRENT_TIME);
+	xcb_change_window_attributes(con, root, XCB_CW_EVENT_MASK, values);
+	xcb_grab_key(con, 0, root, XCB_MOD_MASK_1, 116, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+	xcb_grab_key(con, 0, root, XCB_MOD_MASK_1, 111, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+	xcb_grab_key(con, 0, root, XCB_MOD_MASK_1, 113, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+	xcb_grab_key(con, 0, root, XCB_MOD_MASK_1, 114, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+	xcb_grab_key(con, 0, root, XCB_MOD_MASK_1, 55, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC); // letter v
+	xcb_grab_key(con, 0, root, XCB_MOD_MASK_1, 43, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC); // letter h
+	//xcb_grab_pointer(con, 1, root, XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE, XCB_CURRENT_TIME);
 	
-    //xcb_grab_button(connection, 0, root, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, root, XCB_NONE, 1, XCB_MOD_MASK_1);
-    //xcb_grab_button(connection, 0, root, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, root, XCB_NONE, 3, XCB_MOD_MASK_1);
-	xcb_flush(connection);
+    //xcb_grab_button(con, 0, root, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, root, XCB_NONE, 1, XCB_MOD_MASK_1);
+    //xcb_grab_button(con, 0, root, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, root, XCB_NONE, 3, XCB_MOD_MASK_1);
+	xcb_flush(con);
 }
 
 int main(void)
@@ -1059,7 +1072,7 @@ int main(void)
 	setup();
 
 	for (;;) {
-		ev = xcb_wait_for_event(connection);
+		ev = xcb_wait_for_event(con);
 
 		if (handler[ev->response_type & ~0x80])
 			handler[ev->response_type & ~0x80](ev);

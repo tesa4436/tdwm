@@ -29,7 +29,7 @@ void focus_out(xcb_generic_event_t *ev);
 Window* bfs_search(Window *current, const xcb_window_t key);
 void insert_window_after(Window *root, xcb_window_t after_which, xcb_window_t new_window);
 void change_dimensions(Window *current, const uint32_t x, const int32_t width, Window *lim_window, uint32_t local_width, const unsigned char flag);
-uint32_t calc_length(Window *current, const Window *lim_window, const unsigned char flag);
+uint32_t calc_len(Window *current, const Window *lim_window, const unsigned char flag);
 Window *find_neighboring_group(Window *current, const unsigned char flag);
 
 
@@ -79,7 +79,7 @@ static struct key_mapping *kmapping;
 static const xcb_setup_t *xorg_setup;
 static xcb_atom_t wmatom[WMLast], netatom[NetLast];
 static uint32_t values[6];
-static xcb_connection_t *connection;
+static xcb_connection_t *con;
 static xcb_screen_t *screen;
 static xcb_drawable_t win;
 static xcb_drawable_t root;
